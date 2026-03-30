@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+
+  myapp:
+    build: ./myapp
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+    ports:
+      - "8000:8000"
+
+  mylearning:
+    build: ./mylearning
+    container_name: mylearning-container
