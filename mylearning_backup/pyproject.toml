@@ -19,10 +19,5 @@ dev = [
     "pytest (>=9.0.2,<10.0.0)"
 ]
 
-#Tell Poetry : Don’t install this as a package, just manage dependencies
-[tool.poetry]
-package-mode = false
-
-#pytest config
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["."]

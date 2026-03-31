@@ -1,4 +1,6 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:pyenv",
     "python-envs.defaultPackageManager": "ms-python.python:pip"
+    "python.envFile": "${workspaceFolder}/myapp/.env",
+    "python.terminal.useEnvFile": true
 }

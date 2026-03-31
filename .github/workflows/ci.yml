@@ -5,7 +5,8 @@ on:
     branches: [ main ]
 
 jobs:
-  myapp:
+
+  test-myapp:
     runs-on: ubuntu-latest
 
     services:
@@ -17,86 +18,38 @@ jobs:
           POSTGRES_DB: mydb
         ports:
           - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U myuser"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
 
     steps:
     - uses: actions/checkout@v3
+    - run: pip install poetry
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.11
-
-    - name: Install Poetry
-      run: |
-        cd myapp
-        pip install poetry
-
-    - name: Install dependencies
-      run: |
+    - run: |
         cd myapp
         poetry install --no-root
-
-    - name: Wait for DB
-      run: |
-        cd myapp
-        sleep 5
-
-    - name: Run tests
-      env:
-        DB_HOST: localhost
-      run: |
-        cd myapp
         poetry run pytest
 
-  mylearning:
+  test-mylearning:
     runs-on: ubuntu-latest
+
     steps:
     - uses: actions/checkout@v3
+    - run: pip install poetry
 
-    - name: Install Poetry
-      run: |
-        cd mylearning
-        pip install poetry
-
-    - name: Install dependencies
-      run: |
+    - run: |
         cd mylearning
         poetry install --no-root
-
-    - name: Run script
-      run: |
-        cd mylearning
-        poetry run python exercises/testexcercise.py
+        poetry run pytest
 
   docker:
     runs-on: ubuntu-latest
-    needs: [myapp, mylearning]  # run only if tests pass
+    needs: [test-myapp, test-mylearning]
 
     steps:
     - uses: actions/checkout@v3
 
-    - name: Build Docker image
-      run: docker build -t myapp ./myapp
+    - run: docker compose build
 
-    - name: Build Docker image
-      run: docker build -t mylearning ./mylearning
-
-    - name: Run container myapp
-      run: |
-        docker run -d -p 8000:8000 --name myapp-test myapp
-        sleep 5
-        curl -f http://localhost:8000 || exit 1
-
-    - name: Run container mylearning
-      run: docker run --name mylearning-test mylearning
-
-    - name: Stop container
-      run: docker stop myapp-test
-
-    - name: Stop container
-      run: docker stop mylearning-test
+    - run: |
+        docker compose up -d
+        sleep 10
+        curl -f http://localhost:8000/docs || exit 1

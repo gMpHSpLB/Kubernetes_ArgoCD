@@ -26,15 +26,5 @@ build-backend = "poetry.core.masonry.api"
 dev = [
     "pytest (>=9.0.2,<10.0.0)",
     "ruff (>=0.15.8,<0.16.0)",
-    "black (>=26.3.1,<27.0.0)",
-    "testcontainers (>=4.14.2,<5.0.0)",
-    "psycopg2-binary (>=2.9.11,<3.0.0)"
-]
-
-#pytest config
-[tool.pytest.ini_options]
-pythonpath = ["src"]
-#Register the custom maker (db), sothat pytest can recognize the custome marker
-markers = [
-    "db: marks tests that require database"
+    "black (>=26.3.1,<27.0.0)"
 ]
