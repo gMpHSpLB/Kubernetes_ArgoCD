@@ -1,7 +1,7 @@
 name: Monorepo CI
 
 on: # this is GitHub Actions trigger
-  push: #CI 
+  push: #CI . 'git push'
     branches: [ main ] # main is production branch
 
 

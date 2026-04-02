@@ -1,7 +1,7 @@
 name: Monorepo CD (Release Pipeline)
 
 on: # this is GitHub Actions trigger
-  push: #Both CI and CD happens
+  push: #Both CI and CD happens. 'git tag v1.0.0' then 'git push origin v1.0.0'
     tags:
       - 'v*' # trigger only on version tags
 
