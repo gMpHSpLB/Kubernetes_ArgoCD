@@ -9,7 +9,6 @@ import time
 #      poetry run pytest -m "not db"
 #          or
 #      poetry run pytest -m db
-#  
 
 @pytest.mark.db
 def test_db_connection(db_connection):

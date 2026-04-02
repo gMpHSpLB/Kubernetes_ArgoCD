@@ -33,6 +33,7 @@ test-docker:
 	P2=$$!; \
 	wait $$P1 || exit 1; \
 	wait $$P2 || exit 1;
+	docker compose down -v
 
 # ---------- FULL RUN ----------
 run:
