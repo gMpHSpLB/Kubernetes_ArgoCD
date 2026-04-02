@@ -42,7 +42,6 @@ jobs:
       #      This tells Docker: “I want to authenticate with GitHub Container Registry” 
       # -u ${{ github.actor }} : Username = GitHub user who triggered the workflow
       # --password-stdin : Tells Docker: “Read password from input (stdin), not from command line”
-      if: github.ref == 'refs/heads/main' #don’t do CD on PR 
       run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
     - name: Tag Docker images # Tag docker images
@@ -55,7 +54,6 @@ jobs:
       #           Use When : Do local testing and quick run
       #           myapp:${{ github.sha }} : The unique commit ID (SHA), exact version
       #           Use when : Do debugging, rollback, production stability
-      if: github.ref == 'refs/heads/main'
       run:  |  
         docker tag myapp env.IMAGE_MYAPP:latest
         docker tag myapp env.IMAGE_MYAPP:env.VERSION
@@ -64,7 +62,6 @@ jobs:
         docker tag mylearning env.IMAGE_MYLEARNING:env.VERSION
 
     - name: Push Docker images #Push images to registry
-      if: github.ref == 'refs/heads/main'
       run: |
         docker push env.IMAGE_MYAPP:latest
         docker push env.IMAGE_MYAPP:env.VERSION
