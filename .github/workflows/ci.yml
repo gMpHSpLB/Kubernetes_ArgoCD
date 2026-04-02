@@ -6,6 +6,10 @@ on: # this is GitHub Actions trigger
   pull_request: # Only CI happens, wait for approve and merge 
     branches: [ main ] #
 
+permissions: #Add permissions in workflow. Make sure to Enable package permissions in Github : Enable package permissions
+  contents: read
+  packages: write
+
 jobs:
   # ---------- CI - Need to run docker only ----------
   docker:
