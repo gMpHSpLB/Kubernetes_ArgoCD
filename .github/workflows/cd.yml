@@ -1,0 +1,73 @@
+name: Monorepo CD (Release Pipeline)
+
+on: # this is GitHub Actions trigger
+  push: #Both CI and CD happens
+    tags:
+      - 'v*' # trigger only on version tags
+
+permissions: #Add permissions in workflow. Make sure to Enable package permissions in Github : Enable package permissions
+  contents: read
+  packages: write
+
+jobs:
+  # ---------- CD - Need to run docker only ----------
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build Docker images
+      run: docker compose build
+
+    - name: Set lowercase repo #Convert to lowercase in CD, Docker image names MUST be lowercase
+      run: echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+    
+    - name: Set variables
+      run: |
+        echo "IMAGE_MYAPP=ghcr.io/${{ env.REPO_LOWER }}/myapp" >> $GITHUB_ENV
+        echo "IMAGE_MYLEARNING=ghcr.io/${{ env.REPO_LOWER }}/mylearning" >> $GITHUB_ENV
+  
+    - name: Set Version
+      run: echo "VERSION=$(GITHUB_REF_NAME)" >> $GITHUB_ENV
+
+    - name: Login to GitHub_Container_Registry # CD
+      # Below line: 
+      # It logs your CI pipeline into GitHub Container Registry so Docker can push images securely
+      # secrets.GITHUB_TOKEN - This is an auto-generated secure token from GitHub. 
+      #       No need to create manually
+      #       Valid only during workflow run
+      #       Has permission to push images to your repo
+      # docker login ghcr.io
+      #      This tells Docker: “I want to authenticate with GitHub Container Registry” 
+      # -u ${{ github.actor }} : Username = GitHub user who triggered the workflow
+      # --password-stdin : Tells Docker: “Read password from input (stdin), not from command line”
+      if: github.ref == 'refs/heads/main' #don’t do CD on PR 
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Tag Docker images # Tag docker images
+      # Convert your local image into:
+      #    registry-compatible name
+      #    versioned artifact 
+      # Tag Format for GHRC : ghcr.io/<owner>/<repo>/<image>:<tag> 
+      #    `myapp` : your local image, `ghcr.io` : registry, `${{ github.repository }}`: `username/repo`, `myapp` : image name, `latest` : tag 
+      #     Here, myapp:latest -  Always points to newest version, Immutable version (never changes)
+      #           Use When : Do local testing and quick run
+      #           myapp:${{ github.sha }} : The unique commit ID (SHA), exact version
+      #           Use when : Do debugging, rollback, production stability
+      if: github.ref == 'refs/heads/main'
+      run:  |  
+        docker tag myapp env.IMAGE_MYAPP:latest
+        docker tag myapp env.IMAGE_MYAPP:env.VERSION
+
+        docker tag mylearning env.IMAGE_MYLEARNING:latest
+        docker tag mylearning env.IMAGE_MYLEARNING:env.VERSION
+
+    - name: Push Docker images #Push images to registry
+      if: github.ref == 'refs/heads/main'
+      run: |
+        docker push env.IMAGE_MYAPP:latest
+        docker push env.IMAGE_MYAPP:env.VERSION
+
+        docker push env.IMAGE_MYLEARNING:latest
+        docker push env.IMAGE_MYLEARNING:env.VERSION
