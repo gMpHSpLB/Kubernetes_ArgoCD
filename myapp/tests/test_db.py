@@ -1,6 +1,6 @@
 import os
-import psycopg2
 import pytest
+import time
 
 #1. Note: any pytest ->  pytest = functions + assertions + controlled execution
 #2. naming convention -> test_ function pytest detects it
@@ -11,25 +11,10 @@ import pytest
 #      poetry run pytest -m db
 #  
 
-#Note:
-#   Default values used by testcontainers:
-#     user = test
-#     password = test
-#     db = test
-
 @pytest.mark.db
-def test_db_connection(postgres_container):
-    #Recommended approach: Use the below built-in connection URL instead of manual fields.
-    #conn = psycopg2.connect(postgres_container.get_connection_url())
-    
-    #Using manual fields 
-    conn = psycopg2.connect(
-        host=postgres_container.get_container_host_ip(),
-        port=postgres_container.get_exposed_port(5432),
-        dbname="test",
-        user="test",
-        password="test"
-    )
+def test_db_connection(db_connection):
+    with db_connection.cursor() as cursor:
+        cursor.execute("SELECT 1;")
+        result = cursor.fetchone()
 
-    assert conn is not None
-    conn.close()
+    assert result[0] == 1

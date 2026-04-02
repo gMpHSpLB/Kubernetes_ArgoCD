@@ -5,8 +5,8 @@ on:
     branches: [ main ]
 
 jobs:
-
-  test-myapp:
+  # ---------- MYAPP ----------
+  myapp:
     runs-on: ubuntu-latest
 
     services:
@@ -21,35 +21,46 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - run: pip install poetry
 
-    - run: |
+    - name: Install Poetry 
+      run: pip install poetry
+
+    - name: Run myapp tests
+      run: |
         cd myapp
         poetry install --no-root
         poetry run pytest
 
-  test-mylearning:
+  # ---------- MYLEARNING ----------
+  mylearning:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-    - run: pip install poetry
 
-    - run: |
+    - name: Install Poetry
+      run: pip install poetry
+
+    - name: Run mylearning tests
+      run: |
         cd mylearning
         poetry install --no-root
         poetry run pytest
 
   docker:
     runs-on: ubuntu-latest
-    needs: [test-myapp, test-mylearning]
+    needs: [myapp, mylearning]
 
     steps:
     - uses: actions/checkout@v3
 
-    - run: docker compose build
+    - name: Build Docker images
+      run: docker compose build
 
-    - run: |
-        docker compose up -d
-        sleep 10
-        curl -f http://localhost:8000/docs || exit 1
+    - name: Run Docker tests
+      run: make test-docker
+
+    - name: Check API
+      run: |
+        make run
+        make check-api
