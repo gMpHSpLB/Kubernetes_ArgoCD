@@ -28,6 +28,7 @@ name: Monorepo CI-CD pipeline # For dev/staging/prod environment
 
 on: # this is GitHub Actions trigger
   push: #Both CI and CD happens. 'git tag v1.0.0' then 'git push origin v1.0.0'
+    branches: [ main ]
     tags:
       - 'v*' # trigger only on version tags
 
