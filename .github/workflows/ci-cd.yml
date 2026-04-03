@@ -184,23 +184,23 @@ jobs:
         docker tag ${{ needs.ci.outputs.image_mylearning_dev }} ${{ needs.ci.outputs.image_mylearning_staging }}
         docker push ${{ needs.ci.outputs.image_mylearning_staging }}
 
-   -name: Run staging stack
-    env:
-      IMAGE_MYAPP_STAGING: ${{ needs.ci.outputs.image_myapp_staging }}
-      IMAGE_MYLEARNING_STAGING: ${{ needs.ci.outputs.image_mylearning_staging }}
-    run: |
-      docker compose -f docker-compose.staging.yml down -v --remove-orphans
-      docker compose -f docker-compose.staging.yml up -d
-      sleep 15 
+    - name: Run staging stack
+      env:
+        IMAGE_MYAPP_STAGING: ${{ needs.ci.outputs.image_myapp_staging }}
+        IMAGE_MYLEARNING_STAGING: ${{ needs.ci.outputs.image_mylearning_staging }}
+      run: |
+        docker compose -f docker-compose.staging.yml down -v --remove-orphans
+        docker compose -f docker-compose.staging.yml up -d
+        sleep 15 
 
-    -name: Run staging API checks
-    run: |
-      sleep 10
-      curl -f http://localhost:8000/docs || exit 1
+    - name: Run staging API checks
+      run: |
+        sleep 10
+        curl -f http://localhost:8000/docs || exit 1
 
-    -name: Tear down staging stack
-    if: always()
-    run: docker compose -f docker-compose.staging.yml down -v
+    - name: Tear down staging stack
+      if: always()
+      run: docker compose -f docker-compose.staging.yml down -v
   
   
   #This runs when you create and push a version tag like
