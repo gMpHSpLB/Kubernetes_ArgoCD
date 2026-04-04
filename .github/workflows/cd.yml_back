@@ -23,7 +23,7 @@ jobs:
     - name: Set lowercase repo #Convert to lowercase in CD, Docker image names MUST be lowercase
       run: echo "REPO_LOWER=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
     
-    - name: Set variables
+    - name: Set image names
       run: |
         echo "IMAGE_MYAPP=ghcr.io/$REPO_LOWER/myapp" >> $GITHUB_ENV
         echo "IMAGE_MYLEARNING=ghcr.io/$REPO_LOWER/mylearning" >> $GITHUB_ENV

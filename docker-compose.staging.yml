@@ -18,10 +18,13 @@ services:
     container_name: myapp-staging
     depends_on:
       - db
-    environment:
-      DB_HOST: db
-      DB_PORT: 5432
-      ENV: staging
+    environment: #Python uses DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, APP_ENV. Here, DB_* are injected by the staging job from environment secrets.
+      APP_ENV: staging
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
     ports:
       - "8000:8000"
 
@@ -29,4 +32,4 @@ services:
     image: ${IMAGE_MYLEARNING_STAGING} ##will be provided by your deploy-staging job via environment variables from ci-cd.yml
     container_name: mylearning-staging
     environment:
-      ENV: staging
+      APP_ENV: staging

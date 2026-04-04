@@ -21,8 +21,11 @@ services:
     depends_on:
       - db
     environment:
-      DB_HOST: db
-      DB_PORT: 5432
+     DB_HOST: db
+     DB_PORT: 5432
+     DB_NAME: mydb
+     DB_USER: myuser
+     DB_PASSWORD: mypassword
     ports:
       - "8000:8000"
 

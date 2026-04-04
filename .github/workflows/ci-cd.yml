@@ -25,7 +25,10 @@ name: Monorepo CI-CD pipeline # For dev/staging/prod environment
 #deploy-staging is manual through workflow_dispatch, so you can control promotion.
 #deploy-prod runs only for version tags like v1.0.0. if: conditions for tag-based production deploys
 #GitHub Environments can protect staging and production with approvals and secrets
-
+#7. Also add 12-factors style config:
+#     Follow the “config in environment variables” pattern (12‑factor style): 
+#     app reads everything from env vars, and each environment provides different 
+#     values
 on: # this is GitHub Actions trigger
   push: #Both CI and CD happens. 'git tag v1.0.0' then 'git push origin v1.0.0'
     branches: [ main ]
@@ -117,6 +120,16 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    #config validation step at the start of each deploy job. Using defaults if no env overrides
+    - name: Validate dev config
+      run: |
+        : "${DB_HOST:=db}"
+        : "${DB_PORT:=5432}"
+        : "${DB_NAME:=mydb}"
+        : "${DB_USER:=myuser}"
+        : "${DB_PASSWORD:=mypassword}"
+        echo "Dev DB config looks reasonable."
+
     - name: Login to GitHub_Container_Registry # CD
       # Below line: 
       # It logs your CI pipeline into GitHub Container Registry so Docker can push images securely
@@ -140,9 +153,18 @@ jobs:
         docker push ${{ needs.ci.outputs.image_mylearning_dev }}
     
     - name: Run dev stack from registry images
+      #docker compose is better when you want the configuration saved in 
+      #a file (YAML), especially if your app uses multiple services that need to 
+      #start together.
       env:
         IMAGE_MYAPP_DEV: ${{ needs.ci.outputs.image_myapp_dev }}
         IMAGE_MYLEARNING_DEV: ${{ needs.ci.outputs.image_mylearning_dev }}
+        APP_ENV: dev
+        DB_HOST: db
+        DB_PORT: 5432
+        DB_NAME: mydb
+        DB_USER: myuser
+        DB_PASSWORD: mypassword
       run: |
         docker compose -f docker-compose.dev.yml down -v --remove-orphans
         docker compose -f docker-compose.dev.yml up -d
@@ -172,6 +194,24 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    #Validation for deploy-staging:
+    #Staging should fail fast if any required env var or secret is missing. 
+    #Use GitHub Environment secrets for staging (e.g. STAGING_DB_HOST, STAGING_DB_USER, etc.)
+    - name: Validate staging config
+      env:
+        STAGING_DB_HOST: ${{ secrets.STAGING_DB_HOST }}
+        STAGING_DB_PORT: ${{ secrets.STAGING_DB_PORT }}
+        STAGING_DB_NAME: ${{ secrets.STAGING_DB_NAME }}
+        STAGING_DB_USER: ${{ secrets.STAGING_DB_USER }}
+        STAGING_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+      run: |
+        : "${STAGING_DB_HOST:?STAGING_DB_HOST is required}"
+        : "${STAGING_DB_PORT:?STAGING_DB_PORT is required}"
+        : "${STAGING_DB_NAME:?STAGING_DB_NAME is required}"
+        : "${STAGING_DB_USER:?STAGING_DB_USER is required}"
+        : "${STAGING_DB_PASSWORD:?STAGING_DB_PASSWORD is required}"
+        echo "Staging DB config OK."
+
     - name: Login to GitHub Container Registry
       run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
@@ -185,10 +225,17 @@ jobs:
         docker tag ${{ needs.ci.outputs.image_mylearning_dev }} ${{ needs.ci.outputs.image_mylearning_staging }}
         docker push ${{ needs.ci.outputs.image_mylearning_staging }}
 
+    #map to generic DB_* inside the job.
+    #The compose file receives generic DB_* vars that your Python code reads
     - name: Run staging stack
       env:
         IMAGE_MYAPP_STAGING: ${{ needs.ci.outputs.image_myapp_staging }}
         IMAGE_MYLEARNING_STAGING: ${{ needs.ci.outputs.image_mylearning_staging }}
+        DB_HOST: ${{ secrets.STAGING_DB_HOST }}
+        DB_PORT: ${{ secrets.STAGING_DB_PORT }}
+        DB_NAME: ${{ secrets.STAGING_DB_NAME }}
+        DB_USER: ${{ secrets.STAGING_DB_USER }}
+        DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
       run: |
         docker compose -f docker-compose.staging.yml down -v --remove-orphans
         docker compose -f docker-compose.staging.yml up -d
@@ -217,10 +264,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+        #Validation for deploy-prod: uses production environment secrets
+        #prod should fail fast if any required env var or secret is missing. 
+        #Use GitHub Environment secrets for prod (e.g. PROD_DB_HOST, PROD_DB_USER, etc.)
+      - name: Validate production config
+        env:
+          PROD_DB_HOST: ${{ secrets.PROD_DB_HOST }}
+          PROD_DB_PORT: ${{ secrets.PROD_DB_PORT }}
+          PROD_DB_NAME: ${{ secrets.PROD_DB_NAME }}
+          PROD_DB_USER: ${{ secrets.PROD_DB_USER }}
+          PROD_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+        run: |
+          : "${PROD_DB_HOST:?PROD_DB_HOST is required}"
+          : "${PROD_DB_PORT:?PROD_DB_PORT is required}"
+          : "${PROD_DB_NAME:?PROD_DB_NAME is required}"
+          : "${PROD_DB_USER:?PROD_DB_USER is required}"
+          : "${PROD_DB_PASSWORD:?PROD_DB_PASSWORD is required}"
+          echo "Produdtion DB config OK."
+
       - name: Login to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
-      - name: Promote staging images to production
+      - name: Promote staging images to production #promotion staging → prod, with production secrets validated first.
+        env:
+          DB_HOST: ${{ secrets.PROD_DB_HOST }}
+          DB_PORT: ${{ secrets.PROD_DB_PORT }}
+          DB_NAME: ${{ secrets.PROD_DB_NAME }}
+          DB_USER: ${{ secrets.PROD_DB_USER }}
+          DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}      
         run: |
           docker pull ${{ needs.ci.outputs.image_myapp_staging }}
           docker tag ${{ needs.ci.outputs.image_myapp_staging }} ${{ needs.ci.outputs.image_myapp_prod }}

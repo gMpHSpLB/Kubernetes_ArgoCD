@@ -13,6 +13,7 @@ test:
 	wait $$P2 || exit 1;
 
 # ---------- DOCKER BUILD ----------
+#Make sure you're building images before tagging/pushing
 docker-build:
 	docker compose build
 
@@ -22,6 +23,11 @@ docker-db:
 
 # ---------- DOCKER TEST ----------
 #Parallel Docker Tests (Advanced)
+#Note: docker compose run SERVICE COMMAND starts a one-time container 
+#      for a specific service and runs the command you give it. 
+#      For example, docker compose run web bash starts the web service and opens a shell in it.
+#      It reads settings from compose.yml, so you reuse the service config instead of rewriting ports, env vars, and volumes manually.
+#      The command you pass overrides the service’s default command.
 test-docker:
 	docker compose down -v --remove-orphans #remove any container created earlier those are orphan now
 	docker compose up --build --abort-on-container-exit #--abort-on-container-exit = foreground mode (watch containers)
