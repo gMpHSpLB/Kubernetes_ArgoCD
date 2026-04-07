@@ -1,21 +1,21 @@
 lint:
-	(cd myapp && poetry run ruff check . ) && \
-	(cd mylearning && poetry run ruff check . )
+	( cd myapp && poetry run ruff check . ) & \
+	( cd mylearning && poetry run ruff check . )
 
 format:
-	(cd myapp && poetry run black . ) && \
-	(cd myapp && poetry run isort . ) && \
-	(cd mylearning && poetry run black . ) && \
-	(cd mylearning && poetry run isort . ) && \
-	( cd myapp && poetry run ruff format . ) && \
+	( cd myapp && poetry run black . ) & \
+	( cd myapp && poetry run isort . ) & \
+	( cd mylearning && poetry run black . ) & \
+	( cd mylearning && poetry run isort . ) & \
+	( cd myapp && poetry run ruff format . ) & \
 	( cd mylearning && poetry run ruff format . )
 type:
-	(cd myapp && poetry run mypy . ) && \
-	(cd mylearning && poetry run mypy . )
+	( cd myapp && poetry run mypy . ) & \
+	( cd mylearning && poetry run mypy . )
 
 security:
-	(cd myapp && poetry run bandit -r . -c bandit.yml ) && \
-	(cd mylearning && poetry run bandit -r . -c bandit.yml )
+	( cd myapp && poetry run bandit -r . -c bandit.yml ) & \
+	( cd mylearning && poetry run bandit -r . -c bandit.yml )
 
 quality:
 	@echo "Running code quality checks..."
@@ -49,23 +49,23 @@ docker-db:
 
 # ---------- DOCKER TEST ----------
 #Parallel Docker Tests (Advanced)
-#Note: 
-#      1. docker compose run SERVICE COMMAND starts a one-time container 
-#      for a specific service and runs the command you give it. 
+#Note:
+#      1. docker compose run SERVICE COMMAND starts a one-time container
+#      for a specific service and runs the command you give it.
 #      For example, docker compose run web bash starts the web service and opens a shell in it.
 #      It reads settings from compose.yml, so you reuse the service config instead of rewriting ports, env vars, and volumes manually.
 #      The command you pass overrides the service’s default command.
-#      2. docker compose up --build → forces a build step first, then starts containers, ensuring you’re running with the latest code/Dockerfile changes. 
+#      2. docker compose up --build → forces a build step first, then starts containers, ensuring you’re running with the latest code/Dockerfile changes.
 #         it reads docker-compose.yml file
-#      3. --remove-orphans 
+#      3. --remove-orphans
 #				remove any container created earlier those are orphan now
-#      4. --abort-on-container-exit 
+#      4. --abort-on-container-exit
 #				--abort-on-container-exit = foreground mode (watch containers). if any container (e.g. pytest inside myapp) exits, Compose stops the whole stack.
 #				Note: - As soon as any container in the stack exits (for any reason), Docker Compose stops all other containers and the up command returns.
 #                     - If mylearning’s container exits quickly (e.g. runs tests then exits, or crashes), myapp (uvicorn) is stopped too, and the up command ends.
 #	   5. docker compose run --rm myapp poetry run pytest
 #				overrides CMD with poetry run pytest and ignores the Dockerfile CMD.
-#	   6. docker compose up --build --abort-on-container-exit	
+#	   6. docker compose up --build --abort-on-container-exit
 #               Starts services as defined in docker-compose.yml. whatever command the service has will run.
 #               If they have no command: in docker-compose.yml,	then it will run CMD [] command from corresponding Dockefile
 #      7. docker compose run --rm myapp poetry run pytest

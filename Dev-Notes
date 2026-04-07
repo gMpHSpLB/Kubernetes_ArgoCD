@@ -16,7 +16,7 @@ Has CI/CD, Docker, etc.
 
         myapp/src/myapp/
             api/ or routers/ – endpoints. (HTTP handling)
-            services/ – business logic. 
+            services/ – business logic.
             models/ – Pydantic/ORM models. (Data structure)
             core/config.py – (Config Management-Central place for ALL environment variables) settings, env parsing. (Config + DB)
             core/db.py – DB session management.
@@ -56,7 +56,7 @@ Has CI/CD, Docker, etc.
         │   └── test_exercises.py
         │
         ├── pyproject.toml
-        └── README.md      
+        └── README.md
 4. For better code quality,
         You will add:
                 1. Linting → ruff
@@ -65,7 +65,7 @@ Has CI/CD, Docker, etc.
                 4. Type checking → mypy
                 5. Security scan → bandit
                 6. Pre-commit hooks
-                7. CI enforcement  
+                7. CI enforcement
 
         - Linting is the automated checking of source code for errors, bad patterns, and style issues before the code runs. It helps improve code quality by catching mistakes early, keeping code consistent, and making it easier to read and maintain.
 
@@ -79,9 +79,24 @@ Has CI/CD, Docker, etc.
                         Possible bugs or risky code patterns.
 
                         Violations of team coding rules.
-        
+
         MyPy
                 MyPy checks whether your Python type hints match how your code is actually used. It helps catch mistakes like passing a string where an integer is expected, which improves reliability and makes refactoring safer.
 
         Bandit
                 Bandit looks for common security problems in Python code, such as hard-coded passwords, insecure function use, shell injection risks, SQL injection patterns, and unsafe deserialization
+
+        pre-commit hooks for instant local feedback:
+                Pre-commit hooks are small checks that run locally before a commit is created, so you get instant feedback on issues like formatting problems, lint errors, debug statements, or invalid code.
+
+                What they do
+                They stop or warn you before bad code gets committed, which saves time compared with finding the same issue later in CI or during code review. They are usually configured to run only on staged files, so they stay fast enough to feel immediate.
+
+                Why they help
+                        Catch mistakes early.
+
+                        Keep code style consistent.
+
+                        Prevent obvious problems from reaching the repository.
+
+                        Reduce noisy CI failures by fixing simple issues locally first
