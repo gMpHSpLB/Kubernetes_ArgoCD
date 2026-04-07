@@ -62,4 +62,5 @@ COPY tests ./tests
 ENV PYTHONPATH=/app/src
 
 # Run FastAPI with Uvicorn (good for dev/staging, later switch to Gunicorn for prod)
+#  just be aware CMD is for runtime, not for tests
 CMD ["poetry", "run", "uvicorn", "myapp.main:app", "--host", "0.0.0.0", "--port", "8000"]

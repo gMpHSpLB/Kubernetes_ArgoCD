@@ -103,6 +103,7 @@ jobs:
         run: |
           make run
           make check-api
+          make clean
 
   # CD - Dev (auto deploy)
   # It triggered/runs when 
@@ -144,7 +145,10 @@ jobs:
       run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
     
     - name: Build and Push dev images #Push images to registry
-      #builds a Docker image from the Dockerfile inside the ./myapp directory, and tags the resulting image with the name stored in IMAGE_MYAPP. The build context is ./myapp, so Docker sends that folder’s contents to the build process. It does not read docker-compose.yml file.
+      #builds a Docker image from the Dockerfile inside the ./myapp directory, 
+      #   and tags the resulting image with the name stored in IMAGE_MYAPP. 
+      #   The build context is ./myapp, so Docker sends that folder’s contents to the build process. 
+      #   It does not read docker-compose.yml file.
       #Reused those outputs in later jobs with needs.ci.outputs...
       run: |
         docker build -t ${{ needs.ci.outputs.image_myapp_dev }} ./myapp
@@ -173,6 +177,9 @@ jobs:
         docker compose -f docker-compose.dev.yml down -v --remove-orphans
         docker compose -f docker-compose.dev.yml up -d
         sleep 15
+        #Run pytest explicilty for boths 
+        docker compose -f docker-compose.dev.yml run --rm myapp poetry run pytest
+        docker compose -f docker-compose.dev.yml run --rm mylearning poetry run pytest
 
     - name: Run dev API checks
       run: |
