@@ -86,7 +86,7 @@ Has CI/CD, Docker, etc.
         Bandit
                 Bandit looks for common security problems in Python code, such as hard-coded passwords, insecure function use, shell injection risks, SQL injection patterns, and unsafe deserialization
 
-        pre-commit hooks for instant local feedback:
+        pre-commit hooks for instant local feedback (.pre-commit-config.yaml):
                 Pre-commit hooks are small checks that run locally before a commit is created, so you get instant feedback on issues like formatting problems, lint errors, debug statements, or invalid code.
 
                 What they do

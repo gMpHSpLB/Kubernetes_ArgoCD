@@ -31,9 +31,9 @@ quality:
 # Fails if ANY fails
 test:
 	@echo "Running tests in parallel..."
-	( cd myapp && USE_TESTCONTAINERS=true poetry run pytest ) & \
+	( cd myapp && USE_TESTCONTAINERS=true poetry run pytest -n auto ) & \
 	P1=$$!; \
-	( cd mylearning && poetry run pytest ) & \
+	( cd mylearning && poetry run pytest -n auto ) & \
 	P2=$$!; \
 	wait $$P1 || exit 1; \
 	wait $$P2 || exit 1;
@@ -76,9 +76,9 @@ test-docker:
 	docker compose up --build -d db  # only DB, run tests in one-off containers
 	sleep 10
 	@echo "Running Docker tests in parallel..."
-	(docker compose run --rm myapp poetry run pytest) & \
+	(docker compose run --rm myapp poetry run pytest ) & \
 	P1=$$!; \
-	(docker compose run --rm mylearning poetry run pytest) & \
+	(docker compose run --rm mylearning poetry run pytest -n auto) & \
 	P2=$$!; \
 	wait $$P1 || exit 1; \
 	wait $$P2 || exit 1;
