@@ -20,9 +20,9 @@ services:
         INSTALL_DEV: "true" #build with dev dependencies from *.toml file
     image: myapp #explicilty define docker image name otherwise docker assigns random names.
     container_name: myapp-container
-    working_dir: /app/myapp
+    working_dir: /app
     volumes:
-      - .:/app    # bind mount repo root into /app
+      - ./myapp:/app    # bind mount repo root into /app
     depends_on:
       - db
     environment:

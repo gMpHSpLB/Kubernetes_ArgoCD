@@ -172,3 +172,19 @@ Has CI/CD, Docker, etc.
         - Code, tests, and coverage outputs are all the same directory tree from both Docker and GitHub’s point of view.
 
         - You edit files on the host, containers see them; containers write coverage, the host sees it.
+9. Runner in Github
+        In GitHub Actions, a runner is the machine or environment that actually executes your CI/CD jobs. GitHub triggers the workflow, then assigns each job to a runner, which runs the steps one by one inside that environment.
+
+        How it works
+                You push code or open a pull request.
+
+                GitHub Actions detects the event and starts the workflow.
+
+                A runner picks up the job.
+
+                The runner executes each step, like installing dependencies, running tests, building the app, or deploying it.
+
+        Types of runners
+                GitHub-hosted runners: temporary virtual machines managed by GitHub.
+
+                Self-hosted runners: machines you set up yourself, which can be customized for your needs

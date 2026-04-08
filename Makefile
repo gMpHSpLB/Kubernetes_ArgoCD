@@ -132,8 +132,18 @@ run:
 
 # ---------- API CHECK ----------
 check-api:
-	sleep 10
-	curl -f http://localhost:8000/docs || exit 1
+	@echo "Waiting for API to be ready on http://localhost:8000/docs ..."
+	@for i in 1 2 3 4 5; do \
+		sleep 5; \
+		if curl -sf http://localhost:8000/docs > /dev/null; then \
+			echo "API is up!"; \
+			exit 0; \
+		else \
+			echo "API not ready yet (attempt $$i)..."; \
+		fi; \
+	done; \
+	echo "API did not become ready in time"; \
+	exit 1
 
 # ---------- CLEAN COVERAGE ----------
 clean-coverage:

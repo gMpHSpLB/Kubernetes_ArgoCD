@@ -16,9 +16,9 @@ services:
   myapp:
     image: ${IMAGE_MYAPP_DEV}
     container_name: myapp-dev
-    working_dir: /app/myapp
+    working_dir: /app
     volumes:
-      - .:/app    # bind mount repo root into /app
+      - ./myapp:/app    # bind mount repo root into /app
     depends_on:
       - db
     environment: #Python uses DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, APP_ENV. Here, DB_* are injected by the staging job, using default value
