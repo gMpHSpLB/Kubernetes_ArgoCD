@@ -188,3 +188,23 @@ Has CI/CD, Docker, etc.
                 GitHub-hosted runners: temporary virtual machines managed by GitHub.
 
                 Self-hosted runners: machines you set up yourself, which can be customized for your needs
+
+10. Safety (Dependency CHeck)
+        OWASP Dependency-Check is a security tool that scans your project’s dependencies to find known, publicly disclosed vulnerabilities in third-party libraries.
+
+        What it does
+                It looks at your dependency files or build artifacts.
+
+                It identifies the libraries and their versions.
+
+                It matches them against vulnerability databases such as the National Vulnerability Database.
+
+                It generates a report showing affected components and severity.
+
+        Why it is used
+                It helps you catch risky libraries early, before you ship them into production. This is useful in CI/CD because you can fail the build or warn the team whenever a vulnerable dependency is introduced.
+
+        Important limitation
+                - It can only detect vulnerabilities that are already known and published, so it will not catch brand-new or undisclosed issues. It can also produce some false positives if a dependency is matched incorrectly.
+
+                - If you meant the Python package named safety, that is a similar dependency vulnerability checker for Python projects, also used to find known insecure packages.

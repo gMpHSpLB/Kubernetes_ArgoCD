@@ -26,6 +26,43 @@ security:
 	( cd myapp && poetry run bandit -r . -c bandit.yml ) & \
 	( cd mylearning && poetry run bandit -r . -c bandit.yml )
 
+# safety check scans for known CVEs; you can tune failure behavior with --fail-on flags depending on how strict you want CI to be.
+# Use this if you want to run make security-deps on your machine (outside Docker).
+# You have to manually run "poetry install --with dev" command under each project.
+security-deps:
+	@echo "Running Safety dependency scan for myapp..."
+	( cd myapp && poetry run safety check --full-report )
+
+	@echo "Running Safety dependency scan for mylearning..."
+	( cd mylearning && poetry run safety check --full-report )
+
+# In CI, use only the Docker variant, which already uses INSTALL_DEV=true:
+docker-security-deps:
+	@echo "Running Safety scan for myapp inside Docker..."
+	docker compose run --rm myapp sh -lc "\
+		poetry run safety check --full-report \
+	"
+
+	@echo "Running Safety scan for mylearning inside Docker..."
+	docker compose run --rm mylearning sh -lc "\
+		poetry run safety check --full-report \
+	"
+# ---------- DOCKER IMAGE SECURITY (Docker Scout) ----------
+# curl ... | sh installs the docker scout CLI in the runner/container.
+# docker scout cves myapp:latest and ... mylearning:latest use the images your compose build already creates (image: myapp, image: mylearning).
+# --only-severity high,critical focuses on serious issues; remove it for full detail.
+# If you want the scan to not fail CI even when vulns exist, add || true to each scout line
+# run make docker-build before running this.
+docker-scan:
+	@echo "Installing Docker Scout CLI..."
+	@curl -fsSL https://docker.scout.cli/install.sh | sh
+
+	@echo "Scanning myapp image for high/critical CVEs..."
+	@docker scout cves myapp:latest --only-severity high,critical
+
+	@echo "Scanning mylearning image for high/critical CVEs..."
+	@docker scout cves mylearning:latest --only-severity high,critical
+
 quality:
 	@echo "Running code quality checks..."
 	make lint
@@ -69,6 +106,9 @@ test:
 # ---------- DOCKER BUILD ----------
 #Make sure you're building images before tagging/pushing
 #make sure app images are rebuilt when you change Dockerfiles or deps:
+#Docker builds images with tags:
+#	myapp:latest
+#	mylearning:latest
 docker-build:
 	docker compose build #build image with dev dependency.
 

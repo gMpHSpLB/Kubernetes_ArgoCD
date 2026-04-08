@@ -95,6 +95,9 @@ jobs:
       - name: Code quality checks (ruff + mypy + bandit+ format)
         run: make quality
 
+      - name: Docker Dependency security scan (Safety)
+        run: make docker-security-deps
+
       - name: Tests (local style)
         run: make test
 
@@ -125,6 +128,9 @@ jobs:
         run: |
           make run
           make check-api
+
+      - name: Docker image security scan
+        run: make docker-scan
 
     ## Code Coverage.
       - name: Upload myapp coverage
