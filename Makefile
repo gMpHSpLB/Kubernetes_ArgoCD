@@ -1,6 +1,10 @@
 lint:
 	( cd myapp && poetry run ruff check . ) & \
-	( cd mylearning && poetry run ruff check . )
+	P1=$$!; \
+	( cd mylearning && poetry run ruff check . ) & \
+	P2=$$!; \
+	wait $$P1 || exit 1; \
+	wait $$P2 || exit 1
 
 format:
 	( cd myapp && poetry run black . ) & \
@@ -8,7 +12,12 @@ format:
 	( cd mylearning && poetry run black . ) & \
 	( cd mylearning && poetry run isort . ) & \
 	( cd myapp && poetry run ruff format . ) & \
-	( cd mylearning && poetry run ruff format . )
+	P1=$$!; \
+	( cd mylearning && poetry run ruff format . ) & \
+	P2=$$!; \
+	wait $$P1 || exit 1; \
+	wait $$P2 || exit 1
+
 type:
 	( cd myapp && poetry run mypy . ) & \
 	( cd mylearning && poetry run mypy . )
@@ -24,6 +33,21 @@ quality:
 	make type
 	make security
 
+# This is combined coverage for both projects.
+# We have added this but not using it in our project
+#   as we want to have seperate report.
+coverage:
+	@echo "Running combined coverage for myapp + mylearning..."
+	# Use myapp's venv but extend PYTHONPATH so both packages are importable
+	cd myapp && \
+	PYTHONPATH=../myapp/src:../mylearning/src \
+	poetry run pytest \
+		../myapp/tests ../mylearning/tests \
+		--cov=myapp --cov=mylearning \
+		--cov-report=term-missing \
+		--cov-report=xml:../coverage-combined.xml \
+		--cov-fail-under=20
+
 # ---------- LOCAL TESTS ----------
 #Use wait -n trick, to detect failure correctly
 # Runs both tests in parallel
@@ -31,9 +55,13 @@ quality:
 # Fails if ANY fails
 test:
 	@echo "Running tests in parallel..."
-	( cd myapp && USE_TESTCONTAINERS=true poetry run pytest -n auto ) & \
+	( cd myapp && USE_TESTCONTAINERS=true poetry run pytest -n auto \
+		--cov=myapp --cov-report=term-missing \
+		--cov-report=xml:coverage-myapp.xml --cov-fail-under=20) & \
 	P1=$$!; \
-	( cd mylearning && poetry run pytest -n auto ) & \
+	( cd mylearning && poetry run pytest -n auto \
+		--cov=mylearning --cov-report=term-missing \
+		--cov-report=xml:coverage-mylearning.xml --cov-fail-under=20) & \
 	P2=$$!; \
 	wait $$P1 || exit 1; \
 	wait $$P2 || exit 1;
@@ -70,15 +98,23 @@ docker-db:
 #               If they have no command: in docker-compose.yml,	then it will run CMD [] command from corresponding Dockefile
 #      7. docker compose run --rm myapp poetry run pytest
 #				Here, myapp is service name from docker-compose.yml file instead of image name.
+#	   8. If you want machine-readable reports for CI for code coverage, add XML:coverage.xml
+#				This writes coverage.xml inside the container;
+#	   9. Add a threshold in your pytest command using --cov-fail-under.
+#				If coverage drops below the threshold, pytest exits non‑zero and CI fails.
 test-docker:
 	docker compose down -v --remove-orphans
 	#docker compose up --build --abort-on-container-exit
 	docker compose up --build -d db  # only DB, run tests in one-off containers
 	sleep 10
 	@echo "Running Docker tests in parallel..."
-	(docker compose run --rm myapp poetry run pytest ) & \
+	(docker compose run --rm myapp poetry run pytest \
+		--cov=myapp --cov-report=term-missing \
+		--cov-report=xml:coverage-myapp.xml --cov-fail-under=20) & \
 	P1=$$!; \
-	(docker compose run --rm mylearning poetry run pytest -n auto) & \
+	(docker compose run --rm mylearning poetry run pytest -n auto \
+		--cov=mylearning --cov-report=term-missing \
+		--cov-report=xml:coverage-mylearning.xml --cov-fail-under=20) & \
 	P2=$$!; \
 	wait $$P1 || exit 1; \
 	wait $$P2 || exit 1;
@@ -94,7 +130,12 @@ check-api:
 	sleep 10
 	curl -f http://localhost:8000/docs || exit 1
 
+# ---------- CLEAN COVERAGE ----------
+clean-coverage:
+	rm -f myapp/.coverage myapp/coverage*.xml
+	rm -f mylearning/.coverage mylearning/coverage*.xml
 # ---------- CLEAN ----------
 clean:
 	docker compose down -v --remove-orphans
 	docker system prune -f
+	make clean-coverage

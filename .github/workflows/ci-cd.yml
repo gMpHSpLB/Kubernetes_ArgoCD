@@ -31,9 +31,9 @@ name: Monorepo CI-CD pipeline # For dev/staging/prod environment
 #     values
 on: # this is GitHub Actions trigger
   push: #Both CI and CD happens. 'git tag v1.0.0' then 'git push origin v1.0.0'
-    branches: [ main ]
+    branches: [main]
     tags:
-      - 'v*' # trigger only on version tags
+      - "v*" # trigger only on version tags
 
   #GitHub Actions. It uses workflow_dispatch for controlled staging promotion,
   #tag-based production deploys, environment protection, and shared values passed
@@ -42,7 +42,7 @@ on: # this is GitHub Actions trigger
   workflow_dispatch: #for manual staging deploys
     inputs:
       promote_to_staging:
-        description: 'Promote current dev image to staging'
+        description: "Promote current dev image to staging"
         required: false
         type: boolean
         default: false
@@ -92,8 +92,11 @@ jobs:
           cd ../mylearning
           poetry install --with dev --no-root --no-interaction --no-ansi
 
-      - name:  Code quality checks (ruff + mypy + bandit+ format)
+      - name: Code quality checks (ruff + mypy + bandit+ format)
         run: make quality
+
+      - name: Tests (local style)
+        run: make test
 
       - id: vars
         name: Set shared variables
@@ -112,10 +115,8 @@ jobs:
           echo "image_myapp_prod=${REGISTRY}/$REPO_LOWER/myapp:$VERSION" >> $GITHUB_OUTPUT
           echo "image_mylearning_prod=${REGISTRY}/$REPO_LOWER/mylearning:$VERSION" >> $GITHUB_OUTPUT
 
-
       - name: Build Docker images
         run: docker compose build
-
 
       - name: Run Docker tests
         run: make test-docker
@@ -124,6 +125,45 @@ jobs:
         run: |
           make run
           make check-api
+
+    ## Code Coverage.
+      - name: Upload myapp coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-myapp
+          path: myapp/coverage-myapp.xml#
+
+      - name: Upload mylearning coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-mylearning
+          path: mylearning/coverage-mylearning.xml
+
+      #Code covrage using Codecov - In future we can use it but right now we have disbaled it.
+      # codecov/codecov-action@v5 is the current action that wraps the CLI;
+      # tokenless upload is no longer supported,
+      # so you must set CODECOV_TOKEN in GitHub secrets (get it from Codecov’s repo settings).
+      # flags give you separate views for myapp and mylearning inside one monorepo.
+      #- name: Upload myapp coverage to Codecov
+      # uses: codecov/codecov-action@v5
+      #  with:
+      #    files: myapp/coverage-myapp.xml
+      #    flags: myapp
+      #    name: myapp
+      #    fail_ci_if_error: true
+      #    token: ${{ secrets.CODECOV_TOKEN }}
+
+      #- name: Upload mylearning coverage to Codecov
+      #  uses: codecov/codecov-action@v5
+      #  with:
+      #    files: mylearning/coverage-mylearning.xml
+      #    flags: mylearning
+      #    name: mylearning
+      #    fail_ci_if_error: true
+      #    token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Clean all
+        run: |
           make clean
 
   # CD - Dev (auto deploy)
@@ -140,81 +180,81 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    #config validation step at the start of each deploy job. Using defaults if no env overrides
-    - name: Validate dev config
-      run: |
-        : "${DB_HOST:=db}"
-        : "${DB_PORT:=5432}"
-        : "${DB_NAME:=mydb}"
-        : "${DB_USER:=myuser}"
-        : "${DB_PASSWORD:=mypassword}"
-        echo "Dev DB config looks reasonable."
+      #config validation step at the start of each deploy job. Using defaults if no env overrides
+      - name: Validate dev config
+        run: |
+          : "${DB_HOST:=db}"
+          : "${DB_PORT:=5432}"
+          : "${DB_NAME:=mydb}"
+          : "${DB_USER:=myuser}"
+          : "${DB_PASSWORD:=mypassword}"
+          echo "Dev DB config looks reasonable."
 
-    - name: Login to GitHub_Container_Registry # Use GITHUB_TOKEN (not using PAT )
-      # Below line:
-      # It logs your CI pipeline into GitHub Container Registry so Docker can push images securely
-      # secrets.GITHUB_TOKEN - This is an auto-generated secure token from GitHub.
-      #       No need to create manually
-      #       Valid only during workflow run
-      #       Has permission to push images to your repo
-      # docker login ghcr.io
-      #      This tells Docker: “I want to authenticate with GitHub Container Registry”
-      # -u ${{ github.actor }} : Username = GitHub user who triggered the workflow
-      # --password-stdin : Tells Docker: “Read password from input (stdin), not from command line”
-      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Login to GitHub_Container_Registry # Use GITHUB_TOKEN (not using PAT )
+        # Below line:
+        # It logs your CI pipeline into GitHub Container Registry so Docker can push images securely
+        # secrets.GITHUB_TOKEN - This is an auto-generated secure token from GitHub.
+        #       No need to create manually
+        #       Valid only during workflow run
+        #       Has permission to push images to your repo
+        # docker login ghcr.io
+        #      This tells Docker: “I want to authenticate with GitHub Container Registry”
+        # -u ${{ github.actor }} : Username = GitHub user who triggered the workflow
+        # --password-stdin : Tells Docker: “Read password from input (stdin), not from command line”
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-    - name: Build and Push dev images #Push images to registry
-      #builds a Docker image from the Dockerfile inside the ./myapp directory,
-      #   and tags the resulting image with the name stored in IMAGE_MYAPP.
-      #   The build context is ./myapp, so Docker sends that folder’s contents to the build process.
-      #   It does not read docker-compose.yml file.
-      #Reused those outputs in later jobs with needs.ci.outputs...
-      run: |
-        docker build -t ${{ needs.ci.outputs.image_myapp_dev }} ./myapp
-        docker build -t ${{ needs.ci.outputs.image_mylearning_dev }} ./mylearning
-        docker push ${{ needs.ci.outputs.image_myapp_dev }}
-        docker push ${{ needs.ci.outputs.image_mylearning_dev }}
+      - name: Build and Push dev images #Push images to registry
+        #builds a Docker image from the Dockerfile inside the ./myapp directory,
+        #   and tags the resulting image with the name stored in IMAGE_MYAPP.
+        #   The build context is ./myapp, so Docker sends that folder’s contents to the build process.
+        #   It does not read docker-compose.yml file.
+        #Reused those outputs in later jobs with needs.ci.outputs...
+        run: |
+          docker build -t ${{ needs.ci.outputs.image_myapp_dev }} ./myapp
+          docker build -t ${{ needs.ci.outputs.image_mylearning_dev }} ./mylearning
+          docker push ${{ needs.ci.outputs.image_myapp_dev }}
+          docker push ${{ needs.ci.outputs.image_mylearning_dev }}
 
-    - name: Run dev stack from registry images
-      #docker compose is better when you want the configuration saved in
-      #a file (YAML), especially if your app uses multiple services that need to
-      #start together.
-      #docker compose -f docker-compose.dev.yml up -d
-      #     Creates and starts the containers for all services defined in
-      #     that file (or only the services you name after up).If images do not exist yet for services with build:, Compose
-      #     will build them first, then start the containers. -d (detached mode) Runs the containers in the background, returning control to your terminal immediately.
-      #     -f tells docker compose which compose file to use, instead of the default one.
-      env:
-        IMAGE_MYAPP_DEV: ${{ needs.ci.outputs.image_myapp_dev }}
-        IMAGE_MYLEARNING_DEV: ${{ needs.ci.outputs.image_mylearning_dev }}
-        APP_ENV: dev
-        DB_HOST: db
-        DB_PORT: 5432
-        DB_NAME: mydb
-        DB_USER: myuser
-        DB_PASSWORD: mypassword
-      run: |
-        docker compose -f docker-compose.dev.yml down -v --remove-orphans
-        docker compose -f docker-compose.dev.yml up -d
-        sleep 15
-        #Can Run pytest explicilty for boths if dev dependecies are installed in images. Please check the Dockerfile to confirm devdependecies are install or not.
-        #Note: Rightnow, We are not installing devlopment dependencies in dev/staging/prod images as we want to acchiev build once promote many approach.
-        #docker compose -f docker-compose.dev.yml run --rm myapp poetry run pytest
-        #docker compose -f docker-compose.dev.yml run --rm mylearning poetry run pytest
+      - name: Run dev stack from registry images
+        #docker compose is better when you want the configuration saved in
+        #a file (YAML), especially if your app uses multiple services that need to
+        #start together.
+        #docker compose -f docker-compose.dev.yml up -d
+        #     Creates and starts the containers for all services defined in
+        #     that file (or only the services you name after up).If images do not exist yet for services with build:, Compose
+        #     will build them first, then start the containers. -d (detached mode) Runs the containers in the background, returning control to your terminal immediately.
+        #     -f tells docker compose which compose file to use, instead of the default one.
+        env:
+          IMAGE_MYAPP_DEV: ${{ needs.ci.outputs.image_myapp_dev }}
+          IMAGE_MYLEARNING_DEV: ${{ needs.ci.outputs.image_mylearning_dev }}
+          APP_ENV: dev
+          DB_HOST: db
+          DB_PORT: 5432
+          DB_NAME: mydb
+          DB_USER: myuser
+          DB_PASSWORD: mypassword
+        run: |
+          docker compose -f docker-compose.dev.yml down -v --remove-orphans
+          docker compose -f docker-compose.dev.yml up -d
+          sleep 15
+          #Can Run pytest explicilty for boths if dev dependecies are installed in images. Please check the Dockerfile to confirm devdependecies are install or not.
+          #Note: Rightnow, We are not installing devlopment dependencies in dev/staging/prod images as we want to acchiev build once promote many approach.
+          #docker compose -f docker-compose.dev.yml run --rm myapp poetry run pytest
+          #docker compose -f docker-compose.dev.yml run --rm mylearning poetry run pytest
 
-    - name: Run dev API checks
-      run: |
-        sleep 10
-        curl -f http://localhost:8000/docs || exit 1
+      - name: Run dev API checks
+        run: |
+          sleep 10
+          curl -f http://localhost:8000/docs || exit 1
 
-    - name: Tear down dev stack
-      env:
-        IMAGE_MYAPP_DEV: ${{ needs.ci.outputs.image_myapp_dev }}
-        IMAGE_MYLEARNING_DEV: ${{ needs.ci.outputs.image_mylearning_dev }}
-      if: always()
-      run: docker compose -f docker-compose.dev.yml down -v
+      - name: Tear down dev stack
+        env:
+          IMAGE_MYAPP_DEV: ${{ needs.ci.outputs.image_myapp_dev }}
+          IMAGE_MYLEARNING_DEV: ${{ needs.ci.outputs.image_mylearning_dev }}
+        if: always()
+        run: docker compose -f docker-compose.dev.yml down -v
 
   # CD - Staging (controlled)
   # This runs when you manually trigger the workflow in GitHub Actions and choose promote_to_staging = true.
@@ -229,67 +269,66 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.promote_to_staging == true
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    #Validation for deploy-staging:
-    #Staging should fail fast if any required env var or secret is missing.
-    #Use GitHub Environment secrets for staging (e.g. STAGING_DB_HOST, STAGING_DB_USER, etc.)
-    - name: Validate staging config
-      env:
-        STAGING_DB_HOST: ${{ secrets.STAGING_DB_HOST }}
-        STAGING_DB_PORT: ${{ secrets.STAGING_DB_PORT }}
-        STAGING_DB_NAME: ${{ secrets.STAGING_DB_NAME }}
-        STAGING_DB_USER: ${{ secrets.STAGING_DB_USER }}
-        STAGING_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
-      run: |
-        : "${STAGING_DB_HOST:?STAGING_DB_HOST is required}"
-        : "${STAGING_DB_PORT:?STAGING_DB_PORT is required}"
-        : "${STAGING_DB_NAME:?STAGING_DB_NAME is required}"
-        : "${STAGING_DB_USER:?STAGING_DB_USER is required}"
-        : "${STAGING_DB_PASSWORD:?STAGING_DB_PASSWORD is required}"
-        echo "Staging DB config OK."
+      #Validation for deploy-staging:
+      #Staging should fail fast if any required env var or secret is missing.
+      #Use GitHub Environment secrets for staging (e.g. STAGING_DB_HOST, STAGING_DB_USER, etc.)
+      - name: Validate staging config
+        env:
+          STAGING_DB_HOST: ${{ secrets.STAGING_DB_HOST }}
+          STAGING_DB_PORT: ${{ secrets.STAGING_DB_PORT }}
+          STAGING_DB_NAME: ${{ secrets.STAGING_DB_NAME }}
+          STAGING_DB_USER: ${{ secrets.STAGING_DB_USER }}
+          STAGING_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: |
+          : "${STAGING_DB_HOST:?STAGING_DB_HOST is required}"
+          : "${STAGING_DB_PORT:?STAGING_DB_PORT is required}"
+          : "${STAGING_DB_NAME:?STAGING_DB_NAME is required}"
+          : "${STAGING_DB_USER:?STAGING_DB_USER is required}"
+          : "${STAGING_DB_PASSWORD:?STAGING_DB_PASSWORD is required}"
+          echo "Staging DB config OK."
 
-    - name: Login to GitHub Container Registry
-      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+      - name: Login to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
 
-    - name: Promote dev images to staging
-      run: |
-        docker pull ${{ needs.ci.outputs.image_myapp_dev }}
-        docker tag ${{ needs.ci.outputs.image_myapp_dev }} ${{ needs.ci.outputs.image_myapp_staging }}
-        docker push ${{ needs.ci.outputs.image_myapp_staging }}
+      - name: Promote dev images to staging
+        run: |
+          docker pull ${{ needs.ci.outputs.image_myapp_dev }}
+          docker tag ${{ needs.ci.outputs.image_myapp_dev }} ${{ needs.ci.outputs.image_myapp_staging }}
+          docker push ${{ needs.ci.outputs.image_myapp_staging }}
 
-        docker pull ${{ needs.ci.outputs.image_mylearning_dev }}
-        docker tag ${{ needs.ci.outputs.image_mylearning_dev }} ${{ needs.ci.outputs.image_mylearning_staging }}
-        docker push ${{ needs.ci.outputs.image_mylearning_staging }}
+          docker pull ${{ needs.ci.outputs.image_mylearning_dev }}
+          docker tag ${{ needs.ci.outputs.image_mylearning_dev }} ${{ needs.ci.outputs.image_mylearning_staging }}
+          docker push ${{ needs.ci.outputs.image_mylearning_staging }}
 
-    #map to generic DB_* inside the job.
-    #The compose file receives generic DB_* vars that your Python code reads
-    - name: Run staging stack
-      env:
-        IMAGE_MYAPP_STAGING: ${{ needs.ci.outputs.image_myapp_staging }}
-        IMAGE_MYLEARNING_STAGING: ${{ needs.ci.outputs.image_mylearning_staging }}
-        DB_HOST: ${{ secrets.STAGING_DB_HOST }}
-        DB_PORT: ${{ secrets.STAGING_DB_PORT }}
-        DB_NAME: ${{ secrets.STAGING_DB_NAME }}
-        DB_USER: ${{ secrets.STAGING_DB_USER }}
-        DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
-      run: |
-        docker compose -f docker-compose.staging.yml down -v --remove-orphans
-        docker compose -f docker-compose.staging.yml up -d
-        sleep 15
+      #map to generic DB_* inside the job.
+      #The compose file receives generic DB_* vars that your Python code reads
+      - name: Run staging stack
+        env:
+          IMAGE_MYAPP_STAGING: ${{ needs.ci.outputs.image_myapp_staging }}
+          IMAGE_MYLEARNING_STAGING: ${{ needs.ci.outputs.image_mylearning_staging }}
+          DB_HOST: ${{ secrets.STAGING_DB_HOST }}
+          DB_PORT: ${{ secrets.STAGING_DB_PORT }}
+          DB_NAME: ${{ secrets.STAGING_DB_NAME }}
+          DB_USER: ${{ secrets.STAGING_DB_USER }}
+          DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: |
+          docker compose -f docker-compose.staging.yml down -v --remove-orphans
+          docker compose -f docker-compose.staging.yml up -d
+          sleep 15
 
-    - name: Run staging API checks
-      run: |
-        sleep 10
-        curl -f http://localhost:8000/docs || exit 1
+      - name: Run staging API checks
+        run: |
+          sleep 10
+          curl -f http://localhost:8000/docs || exit 1
 
-    - name: Tear down staging stack
-      env:
-        IMAGE_MYAPP_STAGING: ${{ needs.ci.outputs.image_myapp_staging }}
-        IMAGE_MYLEARNING_STAGING: ${{ needs.ci.outputs.image_mylearning_staging }}
-      if: always()
-      run: docker compose -f docker-compose.staging.yml down -v
-
+      - name: Tear down staging stack
+        env:
+          IMAGE_MYAPP_STAGING: ${{ needs.ci.outputs.image_myapp_staging }}
+          IMAGE_MYLEARNING_STAGING: ${{ needs.ci.outputs.image_mylearning_staging }}
+        if: always()
+        run: docker compose -f docker-compose.staging.yml down -v
 
   #This runs when you create and push a version tag like
   #    git tag v1.0.0

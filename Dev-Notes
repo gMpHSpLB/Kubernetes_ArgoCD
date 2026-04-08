@@ -100,3 +100,49 @@ Has CI/CD, Docker, etc.
                         Prevent obvious problems from reaching the repository.
 
                         Reduce noisy CI failures by fixing simple issues locally first
+5. -n auto option
+        To run pytest -n auto you need pytest-xdist installed in the environment
+
+        Each project runs its tests in parallel across CPU cores.
+
+6. pytest-cov is a pytest plugin that measures test coverage while your tests run. It tells you which lines, branches, or files were exercised by the test suite, and it can generate reports such as terminal output, HTML, or XML.
+
+        What it does
+                - Runs your tests with coverage tracking enabled.
+
+                - Reports how much of your code was executed.
+
+                - Can show missing lines and branch coverage.
+
+                - Supports combining coverage from multiple test runs and works well with pytest-xdist.
+
+        Common command
+        A typical command looks like this:
+
+        bash
+                pytest --cov=your_package
+                That means “run pytest and collect coverage for your_package”.
+
+        Why it is useful
+                It helps you see untested parts of your code so you can improve confidence in your test suite. It is especially useful in CI pipelines because it can also produce machine-readable reports like XML for further processing.
+
+        In short, pytest-cov is the tool that connects pytest with coverage measurement and reporting.
+7. Codecov and Adding badge
+        A Codecov badge is a small status image you add to a repository’s README to show code coverage, usually the percentage of your code exercised by tests. Codecov is the service that generates and updates that badge from your coverage data.
+
+        Codecov: First‑class GitHub app, good monorepo + flag support, easy badges from their UI.
+
+        What “adding a badge” means
+                “Adding a badge” usually means pasting a Markdown image link into your README.md so the badge appears on your project page. For Codecov, the badge often shows your current coverage status and can be copied from the project’s badge/settings area.
+
+        Why it is used
+                It gives visitors a quick view of test coverage.
+
+                It helps teams track whether coverage is improving or dropping.
+
+                It makes the project look more complete and CI-aware.
+
+        Example
+                A typical README badge looks like a linked image, so clicking it takes you to the coverage dashboard. Codecov also supports badges for flags, components, and bundle size in some setups
+
+        Github: You have to setup Codecov and set token as well.
