@@ -173,9 +173,7 @@ jobs:
       - name: Coverage Summary
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
-          files: |
-            myapp/coverage-myapp.xml
-            mylearning/coverage-mylearning.xml
+          filename: '**/coverage-*.xml'
           format: markdown
           output: both         # console + job summary
           badge: false         # you can turn this on later if you want, to generate a small badge image/link that you can show somewhere
