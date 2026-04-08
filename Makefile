@@ -60,7 +60,7 @@ test:
 		--cov-report=xml:coverage-myapp.xml --cov-fail-under=20) & \
 	P1=$$!; \
 	( cd mylearning && poetry run pytest -n auto \
-		--cov=mylearning --cov-report=term-missing \
+		--cov=exercises --cov-report=term-missing \
 		--cov-report=xml:coverage-mylearning.xml --cov-fail-under=20) & \
 	P2=$$!; \
 	wait $$P1 || exit 1; \
@@ -99,9 +99,11 @@ docker-db:
 #      7. docker compose run --rm myapp poetry run pytest
 #				Here, myapp is service name from docker-compose.yml file instead of image name.
 #	   8. If you want machine-readable reports for CI for code coverage, add XML:coverage.xml
-#				This writes coverage.xml inside the container;
-#	   9. Add a threshold in your pytest command using --cov-fail-under.
-#				If coverage drops below the threshold, pytest exits non‑zero and CI fails.
+#				- This writes coverage.xml inside the container;
+#	    		- Add a threshold in your pytest command using --cov-fail-under.
+#					If coverage drops below the threshold, pytest exits non‑zero and CI fails.
+#				- Your code lives at mylearning/src/exercises/..., and the Python package name is exercises
+				- --cov must point to the importable package/module,
 test-docker:
 	docker compose down -v --remove-orphans
 	#docker compose up --build --abort-on-container-exit
@@ -113,7 +115,7 @@ test-docker:
 		--cov-report=xml:coverage-myapp.xml --cov-fail-under=20) & \
 	P1=$$!; \
 	(docker compose run --rm mylearning poetry run pytest -n auto \
-		--cov=mylearning --cov-report=term-missing \
+		--cov=exercises --cov-report=term-missing \
 		--cov-report=xml:coverage-mylearning.xml --cov-fail-under=20) & \
 	P2=$$!; \
 	wait $$P1 || exit 1; \
