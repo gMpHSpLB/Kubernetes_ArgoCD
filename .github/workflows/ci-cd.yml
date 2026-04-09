@@ -274,6 +274,18 @@ jobs:
           docker push ${{ needs.ci.outputs.image_myapp_dev }}
           docker push ${{ needs.ci.outputs.image_mylearning_dev }}
 
+      # ---- DockerHub Login ----
+      - name: Docker login
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+      - name: Docker image security scan (Docker Scout) - dev images
+        run: |
+          make docker-scan-dev-image IMAGE=${{ needs.ci.outputs.image_myapp_dev }}
+          make docker-scan-dev-image IMAGE=${{ needs.ci.outputs.image_mylearning_dev }}
+
       - name: Run dev stack from registry images
         #docker compose is better when you want the configuration saved in
         #a file (YAML), especially if your app uses multiple services that need to

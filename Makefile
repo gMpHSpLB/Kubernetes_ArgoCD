@@ -22,10 +22,9 @@ type:
 	( cd myapp && poetry run mypy . ) & \
 	( cd mylearning && poetry run mypy . )
 
-security:
+security: #Check in python code for security vulnerability
 	( cd myapp && poetry run bandit -r . -c bandit.yml ) & \
 	( cd mylearning && poetry run bandit -r . -c bandit.yml )
-
 
 ###############Security -- Dependencies ##########################
 # safety check scans for known CVEs; you can tune failure behavior with --fail-on flags depending on how strict you want CI to be.
@@ -75,6 +74,23 @@ docker-scan:
 
 	@echo "Scanning mylearning image for high/critical CVEs..."
 	@docker scout cves mylearning:latest --only-severity high,critical || true
+
+docker-scan-dev-image:
+	@echo "Installing Docker Scout CLI..."
+	@curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
+	@sh install-scout.sh
+	#The leading @ is a Makefile feature: it tells make not to echo the command itself before running it.
+	#	- Without @, make would print the whole line (docker scout cves ...) and then the command’s output.
+	#	- With @, you only see the output of docker scout, which keeps logs cleaner.
+	@echo "Scanning $(IMAGE) image for high/critical CVEs..."
+	#Docker Scout vulnerability scan command.
+	#	- docker scout cves analyzes the $(IMAGE) image and reports known CVEs affecting packages inside it.
+	#	- --only-severity high,critical filters the findings so you only see vulnerabilities with severity high or critical, hiding medium/low ones.
+	#Rightnow we donot want CI to fail on findings, we have wraped each docker scout call with || true
+	docker scout cves $(IMAGE) --only-severity high,critical || true
+
+	@echo "Scanning $(IMAGE) image for high/critical CVEs..."
+	docker scout cves $(IMAGE) --only-severity high,critical || true
 
 quality:
 	@echo "Running code quality checks..."
