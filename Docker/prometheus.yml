@@ -1,0 +1,34 @@
+# This file tells Prometheus to scrape metrics
+global: # sets default settings for all scrape jobs in this Prometheus config.
+  scrape_interval: 15s  # 15s means Prometheus will collect metrics every 15 seconds unless a job overrides it.
+
+# How it works in Docker
+#   If prometheus and myapp are running in the same Docker network, Prometheus can reach myapp by its service name myapp.
+#   So Prometheus will request:
+#     http://myapp:8000/metrics
+# Your application must expose Prometheus-formatted metrics
+# at that path, otherwise Prometheus will not be able to
+# scrape useful data.
+#
+# What Prometheus gets
+#   Each scrape collects values such as request counts,
+#   response times, memory usage, custom business metrics,
+#   and anything else your app exports on /metrics.
+#
+#   Those metrics are then stored in Prometheus so you can query them later or visualize them in Grafana.
+#
+# Example in practice
+#   If your app exports a metric like http_requests_total,
+#   Prometheus will poll it every 15 seconds and store a
+#   time series for it.
+#
+#   That lets you graph traffic trends, set alerts, and
+#   debug issues like increased errors or slow responses.
+#
+# from your app every 15 seconds at the /metrics endpoint on myapp:8000
+scrape_configs: # is the list of targets Prometheus should monitor.
+  - job_name: "myapp" # "myapp" gives this scrape job a name, which is used in Prometheus UI and labels.
+    metrics_path: /metrics # tells Prometheus which HTTP path to call on the target to fetch metrics.
+    static_configs: # means the target is manually specified instead of being discovered automatically
+      - targets:
+          - "myapp:8000" # "myapp:8000" means Prometheus will connect to the host named myapp on port 8000 inside the Docker network.

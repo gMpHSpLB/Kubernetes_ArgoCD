@@ -1,0 +1,23 @@
+# - A minimal provisioning file that tells Grafana
+#   “create a Prometheus data source pointing at the Prometheus service in Docker.
+# - This way Grafana automatically has a Prometheus data source pointing at http://prometheus:9090 as soon as the stack starts.
+# - It tells Grafana to create a Prometheus data source automatically
+#   when Grafana starts, using the Prometheus server at http://prometheus:9090 as the backend.
+# - In practice, if this file is mounted into Grafana’s provisioning directory,
+#   Grafana will load it on startup and register Prometheus as the default source
+#   for metrics queries. That lets dashboards query Prometheus without manual setup each time.
+# - If you build a dashboard and choose a metric panel, Grafana will use this Prometheus source
+#   by default unless you pick another one
+# - Small example
+#   If you build a dashboard and choose a metric panel,
+#   Grafana will use this Prometheus source by default
+#   unless you pick another one.
+apiVersion: 1 # Tells Grafana which provisioning file format version this is.
+
+datasources: # starts a list of data sources to configure.
+  - name: Prometheus # is the display name shown in Grafana.
+    type: prometheus # means the data source is Prometheus-compatible.
+    access: proxy    # means Grafana connects to Prometheus through Grafana’s server, not directly from the browser.
+    url: http://prometheus:9090 # is the address Grafana will use to reach Prometheus.
+    isDefault: true  # makes this the default data source for new dashboards and queries.
+    editable: true   # means users can edit this data source in Grafana’s UI after startup;

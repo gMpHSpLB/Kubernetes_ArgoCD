@@ -247,6 +247,10 @@ jobs:
           : "${DB_NAME:=mydb}"
           : "${DB_USER:=myuser}"
           : "${DB_PASSWORD:=mypassword}"
+          : "${LOG_LEVEL:=info}"
+          : "${OTEL_ENABLED:=true}"
+          : "${OTEL_SERVICE_NAME:=myapp-dev}"
+          : "${OTEL_EXPORTER_OTLP_ENDPOINT:=http://otel-collector:4317}"
           echo "Dev DB config looks reasonable."
 
       - name: Login to GitHub_Container_Registry # Use GITHUB_TOKEN (not using PAT )
@@ -304,6 +308,10 @@ jobs:
           DB_NAME: mydb
           DB_USER: myuser
           DB_PASSWORD: mypassword
+          LOG_LEVEL: info
+          OTEL_ENABLED: "true"
+          OTEL_SERVICE_NAME: "myapp-dev"
+          OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
         run: |
           docker compose -f docker-compose.base.yml -f docker-compose.dev.yml down -v --remove-orphans
           docker compose -f docker-compose.base.yml -f docker-compose.dev.yml up -d
@@ -382,6 +390,10 @@ jobs:
           DB_NAME: ${{ secrets.STAGING_DB_NAME }}
           DB_USER: ${{ secrets.STAGING_DB_USER }}
           DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+          LOG_LEVEL: info
+          OTEL_ENABLED: "true"
+          OTEL_SERVICE_NAME: "myapp-staging"
+          OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
         run: |
           docker compose docker-compose.base.yml -f docker-compose.staging.yml down -v --remove-orphans
           docker compose docker-compose.base.yml -f docker-compose.staging.yml up -d
@@ -440,6 +452,10 @@ jobs:
           DB_NAME: ${{ secrets.PROD_DB_NAME }}
           DB_USER: ${{ secrets.PROD_DB_USER }}
           DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+          LOG_LEVEL: warn
+          OTEL_ENABLED: "true"
+          OTEL_SERVICE_NAME: "myapp-dev"
+          OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
         run: |
           docker pull ${{ needs.ci.outputs.image_myapp_staging }}
           docker tag ${{ needs.ci.outputs.image_myapp_staging }} ${{ needs.ci.outputs.image_myapp_prod }}

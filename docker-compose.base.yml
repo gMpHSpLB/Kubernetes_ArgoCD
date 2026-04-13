@@ -2,7 +2,6 @@
 #   Captures common structure of dev/staging (db + images, no build, no local binds)
 #   No build: and no volumes here; this file is “runtime with images”, suitable for dev/staging/prod and for real deployment on a server.
 #   All env varies via APP_ENV, DB_*, IMAGE_*.
-
 services:
   db:
     image: postgres:15
@@ -17,7 +16,6 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
   myapp:
     image: ${IMAGE_MYAPP}         # env var per env
     container_name: ${MYAPP_CONTAINER_NAME:-myapp}
@@ -32,9 +30,16 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
+      LOG_LEVEL: ${LOG_LEVEL}
+      OTEL_ENABLED: ${OTEL_ENABLED}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      UPTRACE_TOKEN: ${UPTRACE_TOKEN}
+      UPTRACE_DSN: ${UPTRACE_DSN}
+      OTEL_TRACES_SAMPLER: ${OTEL_TRACES_SAMPLER}
+      DISABLE_CUSTOM_MIDDLEWARE: ${DISABLE_CUSTOM_MIDDLEWARE}
     ports:
       - "8000:8000"
-
   mylearning:
     image: ${IMAGE_MYLEARNING}
     container_name: ${MYLEARNING_CONTAINER_NAME:-mylearning}
@@ -43,3 +48,53 @@ services:
       APP_ENV: ${APP_ENV}
     ports:
       - "8001:8000"
+  # This Docker Compose snippet starts two monitoring
+  # services: Prometheus for collecting metrics and
+  # Grafana for visualizing them.
+  # It runs each service as a container, exposes
+  # their web interfaces on ports 9090 and 3000,
+  # and sets basic startup configuration through
+  # mounted files and environment variables.
+  #
+  # What Prometheus does here
+  # Prometheus is the metrics database and scraper in
+  # this setup. It reads prometheus.yml, scrapes the
+  # targets you defined there, stores the time-series data,
+  # and lets you query it through its web UI
+  # on http://localhost:9090. That means it would scrape
+  # your app’s /metrics endpoint on a schedule and keep
+  # the collected data for querying and alerting.
+  prometheus:
+    image: prom/prometheus:v2.55.0 # tells Docker to run Prometheus version 2.55.0 from the official image.
+    container_name: prometheus # gives the container a fixed, readable name instead of a random one.
+    volumes:
+      - ./Docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro #mounts your local Prometheus config file into the container at the path Prometheus expects by default; :ro means read-only, so the container can use the file but not change it.
+    ports:
+      - "9090:9090" # maps port 9090 on your machine to port 9090 inside the container, so you can open the Prometheus UI in your browser.
+    restart: unless-stopped # tells Docker to automatically restart the container after crashes or reboots unless you manually stop it.
+  # What Grafana does here
+  #   Grafana is the visualization layer.
+  #   It does not collect metrics itself; instead,
+  #   it connects to Prometheus as a data source and
+  #   turns the stored metrics into dashboards, graphs,
+  #   and alerts. After starting both containers,
+  #   you would usually log into Grafana, add Prometheus
+  #   as a data source, and build dashboards from the
+  #   metrics Prometheus is scraping.
+  grafana:
+    image: grafana/grafana:latest # runs Grafana from the official image, using the latest available version tag. Using latest for Grafana is convenient for development, but pinning a specific version is usually safer for production so upgrades stay predictable.
+    container_name: grafana # grafana assigns the container the name grafana
+    environment: # sets Grafana’s admin login credentials at startup:
+      - GF_SECURITY_ADMIN_USER=admin # These are environment-based configuration values supported by Grafana’s Docker image
+      - GF_SECURITY_ADMIN_PASSWORD=admin # the default admin/admin login is fine for local testing, but it should be changed before any real deployment.
+    ports:
+      - "3000:3000" # maps Grafana’s default web port to your local machine, so you can open the dashboard at http://localhost:3000.
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./Docker/grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml:ro
+      - ./Docker/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro #Provision dashboards from JSON
+      - ./Docker/dashboards:/var/lib/grafana/dashboards:ro #On startup, Grafana will auto‑load dashboards from those JSON files.
+    restart: unless-stopped # unless-stopped gives Grafana the same restart behavior as Prometheus.
+
+volumes: # You added a volume mount for grafana-data in the Grafana service but did not declare the volume in the volumes:. must be at the root level (same indentation as services:)
+  grafana-data: # A top‑level volumes: block defining grafana-data.

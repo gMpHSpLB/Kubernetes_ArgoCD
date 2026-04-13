@@ -1,4 +1,3 @@
-
 #It overrides that sit on top of docker-compose-base.yml
 services:
   myapp:
@@ -12,14 +11,20 @@ services:
       DB_NAME: ${DB_NAME:-mydb}
       DB_USER: ${DB_USER:-myuser}
       DB_PASSWORD: ${DB_PASSWORD:-mypassword}
+      LOG_LEVEL: ${LOG_LEVEL}
+      OTEL_ENABLED: ${OTEL_ENABLED}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+      UPTRACE_TOKEN: ${UPTRACE_TOKEN}
+      UPTRACE_DSN: ${UPTRACE_DSN}
+      OTEL_TRACES_SAMPLER: ${OTEL_TRACES_SAMPLER}
+      DISABLE_CUSTOM_MIDDLEWARE: ${DISABLE_CUSTOM_MIDDLEWARE}
   mylearning:
     container_name: mylearning-dev
     volumes:
       - ./mylearning:/app # bind mount repo root into /app
     environment:
       APP_ENV: dev
-
-
 #Code before start-deployable-prod‑like-stack-with-Docker-Compose
 # services:
 #   db:
@@ -35,7 +40,6 @@ services:
 #       interval: 5s
 #       timeout: 5s
 #       retries: 10
-
 #   myapp:
 #     image: ${IMAGE_MYAPP_DEV}
 #     container_name: myapp-dev
@@ -53,7 +57,6 @@ services:
 #       DB_PASSWORD: ${DB_PASSWORD}
 #     ports:
 #       - "8000:8000"
-
 #   mylearning:
 #     image: ${IMAGE_MYLEARNING_DEV}
 #     container_name: mylearning-dev

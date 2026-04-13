@@ -223,3 +223,62 @@ clean:
 	docker compose down -v --remove-orphans
 	docker system prune -f #remove unused images and layers
 	make clean-coverage
+
+# ---------- LOCAL DEV STACK WITH OBSERVABILITY ----------
+DEV_DB_HOST ?= db
+DEV_DB_PORT ?= 5432
+DEV_DB_NAME ?= mydb
+DEV_DB_USER ?= myuser
+DEV_DB_PASSWORD ?= mypassword
+LOG_LEVEL ?= info
+DISABLE_CUSTOM_MIDDLEWARE 	?=false
+OTEL_ENABLED ?= true
+OTEL_SERVICE_NAME ?= myapp-dev
+OTEL_EXPORTER_OTLP_ENDPOINT ?= api.uptrace.dev:4317
+UPTRACE_TOKEN ?= WLfJDCI9dKwaoXgI-Z-jFg
+UPTRACE_DSN ?="https://WLfJDCI9dKwaoXgI-Z-jFg@api.uptrace.dev?grpc=4317"
+OTEL_TRACES_SAMPLER ?= always_on
+# Builds local dev images (myapp:latest, mylearning:latest)
+# Run full dev stack: db + myapp + mylearning + prometheus + grafana
+# Run full dev stack: db + myapp + mylearning + prometheus + grafana
+dev-up: docker-build
+	APP_ENV=dev \
+	IMAGE_MYAPP=myapp:latest \
+	IMAGE_MYLEARNING=mylearning:latest \
+	DB_HOST=$(DEV_DB_HOST) \
+	DB_PORT=$(DEV_DB_PORT) \
+	DB_NAME=$(DEV_DB_NAME) \
+	DB_USER=$(DEV_DB_USER) \
+	DB_PASSWORD=$(DEV_DB_PASSWORD) \
+	LOG_LEVEL=${LOG_LEVEL} \
+	OTEL_ENABLED=${OTEL_ENABLED} \
+	OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME} \
+	OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT} \
+	UPTRACE_TOKEN=${UPTRACE_TOKEN} \
+	UPTRACE_DSN=${UPTRACE_DSN} \
+	OTEL_TRACES_SAMPLER=${OTEL_TRACES_SAMPLER} \
+	DISABLE_CUSTOM_MIDDLEWARE=${DISABLE_CUSTOM_MIDDLEWARE} \
+	docker compose -f docker-compose.base.yml -f docker-compose.dev.yml up -d
+
+# Tear down dev stack
+dev-down:
+	APP_ENV=dev \
+	IMAGE_MYAPP=myapp:latest \
+	IMAGE_MYLEARNING=mylearning:latest \
+	DB_HOST=$(DEV_DB_HOST) \
+	DB_PORT=$(DEV_DB_PORT) \
+	DB_NAME=$(DEV_DB_NAME) \
+	DB_USER=$(DEV_DB_USER) \
+	DB_PASSWORD=$(DEV_DB_PASSWORD) \
+	LOG_LEVEL=${LOG_LEVEL} \
+	OTEL_ENABLED=${OTEL_ENABLED} \
+	OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME} \
+	OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT} \
+	UPTRACE_TOKEN=${UPTRACE_TOKEN} \
+	UPTRACE_DSN=${UPTRACE_DSN} \
+	OTEL_TRACES_SAMPLER=${OTEL_TRACES_SAMPLER} \
+	DISABLE_CUSTOM_MIDDLEWARE=${DISABLE_CUSTOM_MIDDLEWARE} \
+	docker compose -f docker-compose.base.yml -f docker-compose.dev.yml down -v --remove-orphans
+
+hit-api-multiple:
+	for i in {1..20}; do curl -s -o /dev/null http://localhost:8000/docs; done

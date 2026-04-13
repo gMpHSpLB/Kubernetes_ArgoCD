@@ -244,4 +244,18 @@ Has CI/CD, Docker, etc.
         - If you use Compose:
         > docker compose images
         This lists images used by services in docker-compose.yml.
-12.
+12. Immutable release:
+        Immutable releases are releases that cannot be changed after they are published. In GitHub’s implementation, that means the release assets and the associated Git tag are locked, which helps prevent supply-chain tampering and accidental changes.
+
+        What that means
+                The tag cannot be moved to a different commit or deleted.
+
+                The attached files, like binaries or archives, cannot be modified or removed.
+
+                Each immutable release gets an attestation, which helps verify that the release you download matches what was published.
+
+        Why it matters
+                Immutable releases improve trust and traceability. They make it much harder for an attacker to replace a safe release with a malicious one, and they also reduce the chance that a developer accidentally changes a release artifact after publication.
+
+        Simple example
+                If version 1.2.0 is published as an immutable release, then anyone who downloads it later can be confident they are getting the exact same tag and files that were originally published.

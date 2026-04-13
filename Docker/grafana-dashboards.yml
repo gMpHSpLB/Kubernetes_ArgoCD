@@ -1,0 +1,15 @@
+# This file is a Grafana dashboard provisioning config.
+# It tells Grafana, at startup, to automatically load
+# dashboard JSON files from /var/lib/grafana/dashboards
+# instead of requiring manual import in the UI.
+apiVersion: 1 # tells Grafana this is the current provisioning file format for dashboard providers.
+
+providers: # defines one or more dashboard source definitions that Grafana should manage.
+  - name: default # is just a label for this provider.
+    orgId: 1 # means the provider applies to Grafana organization 1, which is the default in many setups
+    folder: ""  # means dashboards will be placed in the root folder, not inside a named subfolder
+    type: file  # means Grafana should read dashboard definitions from files on disk.
+    disableDeletion: false # means Grafana is allowed to remove provisioned dashboards if they disappear from the source path.
+    editable: true # means users can edit the dashboard in the UI after it has been provisioned.
+    options:
+      path: /var/lib/grafana/dashboards # is the directory Grafana scans for dashboard JSON files.

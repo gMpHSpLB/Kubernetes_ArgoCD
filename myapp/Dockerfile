@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir poetry && \
     fi
 
 # Copy source code only
-# COPY src instead of COPY . → smaller image, 
+# COPY src instead of COPY . → smaller image,
 # fewer cache busts, no pycache/test junk.
 # Note:
 # COPY src vs COPY . is about what files you put into the image and how often Docker has to rebuild layers.
@@ -63,4 +63,4 @@ ENV PYTHONPATH=/app/src
 
 # Run FastAPI with Uvicorn (good for dev/staging, later switch to Gunicorn for prod)
 #  just be aware CMD is for runtime, not for tests
-CMD ["poetry", "run", "uvicorn", "myapp.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["poetry", "run", "uvicorn", "myapp.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
