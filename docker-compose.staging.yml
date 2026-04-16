@@ -3,7 +3,8 @@ services:
   myapp:
     container_name: myapp-staging
     volumes:
-      - ./myapp:/app
+      - ./myapp:/app # mount project root into /app
+      - ./mylearning:/mylearning
     environment:
       APP_ENV: staging
       DB_HOST: ${DB_HOST}

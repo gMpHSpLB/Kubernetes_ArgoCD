@@ -36,9 +36,10 @@ services:
         INSTALL_DEV: "true" #build with dev dependencies from *.toml file
     image: myapp #explicilty define docker image name otherwise docker assigns random names.
     container_name: myapp-container
-    working_dir: /app/myapp
+    working_dir: /app  # match Dockerfile WORKDIR
     volumes:
-      - .:/app    # mount monorepo root, bind mount repo root into /app
+      - ./myapp:/app    # mount monorepo root, bind mount repo root into /app
+      - ./mylearning:/mylearning
     depends_on:
       - db
     environment:

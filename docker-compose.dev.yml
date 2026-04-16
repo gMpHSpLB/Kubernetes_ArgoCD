@@ -4,6 +4,7 @@ services:
     container_name: myapp-dev
     volumes:
       - ./myapp:/app  # mount project root into /app
+      - ./mylearning:/mylearning
     environment: #Python uses DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, APP_ENV. Here, DB_* are injected by the staging job, using default value
       APP_ENV: dev
       DB_HOST: ${DB_HOST:-db}
