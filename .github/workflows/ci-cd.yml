@@ -222,9 +222,9 @@ jobs:
             cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
           fi
            
-      - name: Deploy to Minikube
+      - name: Deploy and test
         run: |
-          make deploy-minikube-local
+          make k8s-test-db 
 
       - name: Clean all
         run: |
@@ -337,10 +337,14 @@ jobs:
           sleep 10
           curl -f http://localhost:8000/docs || exit 1
       
-      - name: Deploy Dev imiage to Minikube
+      - name: Deploy myapp Dev image
         run: |
-          make deploy-minikube-dev \
-            MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_dev }} \
+          make deploy-myapp-minikube-dev \
+            MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_dev }}
+            
+      - name: Deploy mylearning Dev image to Minikube and run job
+        run: |
+          make deploy-mylearning-minikube-dev \
             MYLEARNING_IMAGE=${{ needs.ci.outputs.image_mylearning_dev }}
 
       - name: Tear down dev stack

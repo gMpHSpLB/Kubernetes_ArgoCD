@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mylearning.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "mylearning.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "mylearning.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "mylearning.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: mylearning
+          image: "{{- if .Values.image.fullName -}}{{ tpl .Values.image.fullName . }}{{- else -}}{{ .Values.image.repository }}:{{ .Values.image.tag }}{{- end -}}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "mylearning.fullname" . }}-config
+            - secretRef:
+                name: {{ .Values.secret.name }}
+          env:
+          {{- range .Values.extraEnv }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+          {{- end }}
+          resources:
+{{- toYaml .Values.resources | nindent 12 }}

@@ -1,0 +1,30 @@
+{{- if and .Values.tests.enabled .Values.tests.full.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "mylearning.fullname" . }}-tests
+  labels:
+    app.kubernetes.io/name: {{ include "mylearning.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    job-type: tests
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "mylearning.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        job-type: tests
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: mylearning-tests
+          image: "{{- if .Values.image.fullName -}}{{ tpl .Values.image.fullName . }}{{- else -}}{{ .Values.image.repository }}:{{ .Values.image.tag }}{{- end -}}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "mylearning.fullname" . }}-config
+            - secretRef:
+                name: {{ .Values.secret.name }}
+          command: {{ toYaml .Values.tests.full.command | nindent 10 }}
+{{- end }}

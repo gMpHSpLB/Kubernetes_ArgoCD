@@ -16,6 +16,9 @@ from typing import List, Optional
 #  - with develop = true means “install this dependency in editable (dev) mode.”
 #    Any code changes you make under ../mylearning/src are immediately visible
 #    in the myapp virtualenv without reinstalling, because Python imports directly from that folder.
+# mylearning = { path = "../mylearning", develop = false }
+#  - with develop = false, it is install ad package in myapp.
+#    So any changes done in mylearning require to reinstall the package.
 from exercises.fibonacci import fibonacci
 from sqlalchemy.orm import Session
 

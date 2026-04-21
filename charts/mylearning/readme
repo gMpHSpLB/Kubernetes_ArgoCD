@@ -1,0 +1,18 @@
+deployables in Kubernetes:
+
+mylearning: a non‑HTTP Python package container you still want to deploy separately, and also run smoke + full pytest in that container (like you do with Docker Compose).
+
+That means:
+mylearning gets a Deployment focused on running library code/tests, not an HTTP Service. For tests, the usual Kubernetes pattern is to use Jobs (one-shot pods) rather than a long‑running Deployment.
+
+Outline both:
+
+A) Minimal mylearning chart as a Deployment (for “long‑lived” library pod).
+
+B) Optional Job templates inside the same chart to run pytest smoke/full suites in-cluster.
+
+No Service template under Helm chart, because there’s nothing to route traffic to. This is essentially a “library pod” whose main value is:
+
+Having the image present in the cluster.
+
+Potentially running background tasks or Jobs.

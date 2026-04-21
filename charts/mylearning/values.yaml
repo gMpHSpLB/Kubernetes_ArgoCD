@@ -1,0 +1,56 @@
+replicaCount: 1
+
+image:
+  fullName: ""      # e.g. ghcr.io/<reponame>/mylearning:dev (set via --set)
+  repository: ""    # optional fallback
+  tag: ""
+  pullPolicy: IfNotPresent
+
+resources:
+  limits:
+    cpu: "200m"
+    memory: "256Mi"
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+
+# Non-secret config for mylearning
+config:
+  APP_ENV: "dev"
+  LOG_LEVEL: "info"
+
+# Secrets if mylearning ever needs DB or tokens
+secret:
+  name: mylearning-secret
+  keys: []
+
+extraEnv: []
+
+tests: # job to runs pytest -m smoke.
+  enabled: true
+
+  smoke:
+    enabled: true
+    command:
+      - python
+      - -m
+      - pytest
+      - -m
+      - smoke
+      - -vv
+      - --log-cli-level=INFO
+      - --log-cli-format=%(asctime)s %(levelname)s [%(name)s] %(message)s
+
+  full: # job to runs full pytest suite.
+    enabled: true
+    command:
+      - python
+      - -m
+      - pytest
+      - -vv
+      - --log-cli-level=INFO
+      - --log-cli-format=%(asctime)s %(levelname)s [%(name)s] %(message)s
+      - --cov=exercises
+      - --cov-report=term-missing
+      - --cov-report=xml:coverage-mylearning.xml
+      - --cov-fail-under=20

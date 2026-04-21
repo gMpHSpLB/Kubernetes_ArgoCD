@@ -3,10 +3,11 @@ SHELL := /bin/bash
 .PHONY: lint format type security quality security-deps docker-security-deps docker-scan docker-scan-dev-image \
         coverage smoke-test test docker-build docker-db docker-test run check-api clean-coverage clean \
         dev-up dev-down hit-api-multiple \
-		deploy-minikube deploy-minikube-ci create-minikube-secrets \
+		create-minikube-secrets \
 		ensure-minikube recreate-minikube deploy-minikube-local-clean \
 		test-minikube test-minikube-all check-minikube-api k8s-test \
 		deploy-minikube-db test-minikube-db k8s-test-db \
+		deploy-myapp-minikube-dev deploy-mylearning-minikube-dev \
 
 ###############Code Quality ###############################
 lint:
@@ -396,14 +397,41 @@ deploy-minikube-local: ensure-minikube
 	@echo "Using Minikube Docker daemon..."
 	eval "$$(minikube docker-env)" && \
 	docker build -t myapp:mklatest -f myapp/Dockerfile . && \
-	docker build -t mylearning:mklatest -f mylearning/Dockerfile . && \
+	docker build -t mylearning:mklatest -f mylearning/Dockerfile . --build-arg INSTALL_DEV=true && \
 	eval "$$(minikube docker-env -u)"
 	@echo "Deploying myapp to Minikube with Helm..."
 	helm upgrade --install myapp-mklatest charts/myapp \
 	  --set image.fullName="myapp:mklatest"
-	# If you want to deploy mylearning too, uncomment and keep this as a full command:
-	#helm upgrade --install mylearning-mklatest charts/mylearning \
-	#  --set image.fullName="mylearning:mklatest"
+	@echo "Deploying mylearning to Minikube with Helm (with test jobs enabled)..."
+	helm upgrade --install mylearning-mklatest charts/mylearning \
+	  --set image.fullName="mylearning:mklatest" \
+	  --set tests.enabled=true \
+	  --set tests.smoke.enabled=true \
+	  --set tests.full.enabled=true
+	@echo "Waiting for mylearning smoke Job to complete..."
+	@if kubectl wait --for=condition=complete --timeout=900s job/mylearning-mklatest-mylearning-smoke; then \
+	  echo "mylearning smoke Job completed successfully. Showing logs..."; \
+	  kubectl logs job/mylearning-mklatest-mylearning-smoke; \
+	else \
+	  echo "mylearning smoke Job did not complete successfully or timed out."; \
+	  echo "Job description:"; \
+	  kubectl describe job mylearning-mklatest-mylearning-smoke || true; \
+	  echo "Job pod logs (if any):"; \
+	  kubectl logs job/mylearning-mklatest-mylearning-smoke || true; \
+	  exit 1; \
+	fi
+	@echo "Waiting for mylearning full test Job to complete..."
+	@if kubectl wait --for=condition=complete --timeout=1800s job/mylearning-mklatest-mylearning-tests; then \
+	  echo "mylearning full test Job completed successfully. Showing logs..."; \
+	  kubectl logs job/mylearning-mklatest-mylearning-tests; \
+	else \
+	  echo "mylearning full test Job did not complete successfully or timed out."; \
+	  echo "Job description:"; \
+	  kubectl describe job mylearning-mklatest-mylearning-tests || true; \
+	  echo "Job pod logs (if any):"; \
+	  kubectl logs job/mylearning-mklatest-mylearning-tests || true; \
+	  exit 1; \
+	fi
 
 # “nuke cluster and redeploy” when regular deploy fails.
 # Add a “clean” deploy for when the cluster is flaky
@@ -424,12 +452,16 @@ test-minikube: deploy-minikube-local
 	@kubectl port-forward svc/myapp-mklatest-myapp 8000:8000 >/tmp/kube-pf-myapp.log 2>&1 & \
 	PF_PID=$$!; \
 	sleep 5; \
-	echo "Running smoke tests against Minikube app..."; \
+	echo "Running smoke tests against Minikube app myapp..."; \
 	( cd myapp && APP_ENV=dev USE_TESTCONTAINERS=true poetry run pytest -m smoke \
-	    --log-cli-level=INFO \
-	    --log-cli-format="%(asctime)s %(levelname)s [%(name)s] %(message)s" ) ; \
+		--log-cli-level=INFO \
+		--log-cli-format="%(asctime)s %(levelname)s [%(name)s] %(message)s" ); \
 	echo "Stopping port-forward..."; \
-	kill $$PF_PID || true
+	kill $$PF_PID || true; \
+	echo "Running smoke tests for mylearning locally..."; \
+	( cd mylearning && APP_ENV=dev poetry run pytest -m smoke \
+		--log-cli-level=INFO \
+		--log-cli-format="%(asctime)s %(levelname)s [%(name)s] %(message)s" )
 
 # USE_TESTCONTAINERS=true
 test-minikube-all: deploy-minikube-local
@@ -437,14 +469,20 @@ test-minikube-all: deploy-minikube-local
 	@kubectl port-forward svc/myapp-mklatest-myapp 8000:8000 >/tmp/kube-pf-myapp.log 2>&1 & \
 	PF_PID=$$!; \
 	sleep 5; \
-	echo "Running All tests against Minikube app..."; \
+	echo "Running all tests against Minikube app myapp..."; \
 	( cd myapp && APP_ENV=dev USE_TESTCONTAINERS=true poetry run pytest -vv \
 		--log-cli-level=INFO \
-  		--log-cli-format="%(asctime)s %(levelname)s [%(name)s] %(message)s" \
+		--log-cli-format="%(asctime)s %(levelname)s [%(name)s] %(message)s" \
 		--cov=myapp --cov-report=term-missing \
 		--cov-report=xml:coverage-myapp.xml --cov-fail-under=20 ); \
 	echo "Stopping port-forward..."; \
-	kill $$PF_PID || true
+	kill $$PF_PID || true; \
+	echo "Running all tests for mylearning locally..."; \
+	( cd mylearning && APP_ENV=dev poetry run pytest -vv \
+		--log-cli-level=INFO \
+		--log-cli-format="%(asctime)s %(levelname)s [%(name)s] %(message)s" \
+		--cov=exercises --cov-report=term-missing \
+		--cov-report=xml:coverage-mylearning.xml --cov-fail-under=20 )
 
 # URL access / health check for Minikube (like check-api)
 check-minikube-api: deploy-minikube-local
@@ -488,7 +526,7 @@ test-minikube-db: deploy-minikube-db deploy-minikube-local
 	@echo "Port-forwarding Minikube Postgres service to localhost:5433..."
 	@kubectl port-forward svc/mydb-postgres 5433:5432 >/tmp/kube-pf-db.log 2>&1 & \
 	PF_DB_PID=$$!; \
-	sleep 5; \
+	sleep 10; \
 	echo "Running smoke tests against Minikube app + DB..."; \
 	( cd myapp && \
 	  USE_TESTCONTAINERS=false \
@@ -536,11 +574,17 @@ k8s-test-db: deploy-minikube-db deploy-minikube-local
 # make deploy-minikube-ci \
 #   MYAPP_IMAGE=ghcr.io/<owner>/<repo>/myapp:dev \
 #   MYLEARNING_IMAGE=ghcr.io/<owner>/<repo>/mylearning:dev
-deploy-minikube-dev:
-	@echo "Deploying myapp and mylearning to Minikube with Helm (pulling from GHCR)..."
+# Dev images from GHCR (no local build)
+deploy-myapp-minikube-dev: ensure-minikube
+	@echo "Deploying myapp to Minikube with Helm (pulling from GHCR)..."
 	helm upgrade --install myapp-dev charts/myapp \
 	  --set image.fullName="$(MYAPP_IMAGE)"
-	# If you want to deploy mylearning too, uncomment and keep this as a full command:
-	#helm upgrade --install mylearning-dev charts/mylearning \
-	#  --set image.fullName="$(MYLEARNING_IMAGE)"
+
+deploy-mylearning-minikube-dev: ensure-minikube
+	@echo "Deploying mylearning (dev image) + test jobs to Minikube with Helm (pulling from GHCR)..."
+	helm upgrade --install mylearning-dev charts/mylearning \
+	  --set image.fullName="$(MYLEARNING_IMAGE)" \
+	  --set tests.enabled=false \ # no dev dependency, so cannot test it.
+	  --set tests.smoke.enabled=false \
+	  --set tests.full.enabled=false
 
