@@ -1,0 +1,156 @@
+# A production-ready starter values-prod.yaml for 
+# kube-prometheus-stack with Ingress, secret handling 
+# strategy, resource tuning, and alerting defaults. 
+# It is written in an enterprise-friendly way: 
+#   private-by-default, TLS-enabled for Grafana, 
+#   no hardcoded passwords, and more realistic resource 
+#   and retention settings for production operations.
+# Secrets strategy
+# In production, the Grafana admin password should never be stored in plain text in the values file. The best practice is to inject credentials from a managed Secret, such as:
+# Kubernetes Secret created by GitOps,
+# External Secrets Operator,
+# HashiCorp Vault,
+# Sealed Secrets,
+# or a cloud secret manager integration.
+#
+# A common enterprise pattern is:
+# store the password in a Secret named grafana-admin-credentials,
+# reference it with existingSecret,
+# rotate it without changing Helm values.
+#
+# If your organization has mature platform tooling, I would favor External Secrets + cloud secret manager or Vault, because it gives better rotation and auditing than static YAML.
+#
+# Ingress design
+# Grafana is the only component I would usually expose through Ingress by default. Prometheus and Alertmanager are often kept internal unless there is a specific need for direct UI access, because their UIs contain operational data and should be behind auth, network controls, or VPN access.
+# The Ingress block above uses:
+# ClusterIP service for internal-only exposure,
+# nginx ingress class,
+# TLS via cert-manager,
+# forced HTTPS redirects,
+# and a certificate secret named grafana-tls.
+#
+# That is a standard enterprise pattern for secure browser access to Grafana.
+
+# Resource tuning guidance
+# The resource values here are a starting point, not a universal final answer. Prometheus is the most sensitive component because memory use depends heavily on:
+# number of scrape targets,
+# scrape interval,
+# metric cardinality,
+# retention window,
+# and query concurrency.
+#
+# For a larger cluster, 2Gi to 4Gi memory is often a reasonable initial production range, but high-cardinality environments may need much more. Alertmanager and the operator usually remain lightweight, so their settings are mainly there to prevent starvation and noisy-neighbor issues.
+#
+# Alerting best practices
+# Production alerting should not stop at enabled: true. You also want:
+# defined routes and receivers,
+# grouping rules to avoid alert storms,
+# inhibition rules so symptoms do not drown root-cause alerts,
+# paging only for actionable alerts,
+# and separate severity levels such as warning, critical, and info.
+#
+# Alertmanager config is usually better maintained as a dedicated secret or external config source rather than embedded directly in values. That keeps sensitive routing details and notification tokens out of Git history.
+#
+# Production hardening
+# For enterprise use, I would also recommend:
+# Use a dedicated namespace like monitoring.
+# Add NetworkPolicy to restrict access to Grafana, Prometheus, and Alertmanager.
+# Use real DNS and TLS for Grafana.
+# Integrate SSO or OAuth if possible.
+# Avoid exposing Prometheus/Alertmanager publicly.
+# Consider persistent storage for Prometheus and plan disk sizing carefully.
+# Use environment-specific values files: values-dev.yaml, values-staging.yaml, values-prod.yaml.
+prometheusOperator:
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+prometheus:
+  prometheusSpec:
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "2Gi"
+      limits:
+        cpu: "2000m"
+        memory: "4Gi"
+
+    retention: 30d
+    scrapeInterval: "30s"
+    evaluationInterval: "30s"
+
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+    # Strongly recommended for production if you use persistent local TSDB storage.
+    # Adjust size based on retention, scrape volume, and cardinality.
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: standard
+          resources:
+            requests:
+              storage: 50Gi
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+    # Merge AlertmanagerConfig CRs from the monitoring namespace.
+    alertmanagerConfigNamespaceSelector: {}
+    alertmanagerConfigSelector: {}
+    # In production, use Alertmanager config delivered via Secret or values from secure GitOps.
+    # Example:
+    # alertmanagerSpec:
+    #   configSecret: alertmanager-config
+
+grafana:
+  enabled: true
+
+  # Admin username stays "admin", password comes from existing Secret.
+  adminUser: "admin"
+
+  # Do NOT hardcode production passwords here.
+  # Use existingSecret, External Secrets, Vault, SealedSecrets, or a GitOps-managed Secret.
+  admin:
+    existingSecret: grafana-admin-credentials
+    userKey: admin-user
+    passwordKey: admin-password
+
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: HTTP
+      nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    hosts:
+      - grafana.example.com
+    path: /
+    pathType: Prefix
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.example.com
+
+  rbac:
+    create: true
+  pspEnabled: false

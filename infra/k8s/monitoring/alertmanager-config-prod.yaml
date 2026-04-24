@@ -1,0 +1,35 @@
+# Alertmanager config Secret / CR (prod)
+# Alertmanager config via CR (prod)
+# Given you already have infra/k8s/rules/*, the clean pattern is to manage alert 
+# routing with an AlertmanagerConfig CR in the same namespace, 
+# and let alertmanagerSpec.alertmanagerConfigSelector/NamespaceSelector pick them up.
+#
+# Example: simple email receiver using a secret for credentials.
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: kube-prometheus-stack-alertmanagerconfig
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/instance: kube-prometheus-stack
+    app.kubernetes.io/name: alertmanagerconfig
+spec:
+  route:
+    receiver: default-receiver
+    groupBy: ["alertname"]
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 12h
+
+  receivers:
+    - name: default-receiver
+      emailConfigs:
+        - to: "oncall@example.com"
+          from: "alerts@example.com"
+          smarthost: "smtp.example.com:587"
+          authUsername: "alerts@example.com"
+          authPassword:
+            name: alertmanager-smtp-secret
+            key: smtp_password
+          requireTLS: true
+          sendResolved: true

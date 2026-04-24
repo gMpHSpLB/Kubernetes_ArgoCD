@@ -1,0 +1,84 @@
+# Namespace, PSA labels, and base values
+# This YAML creates a Kubernetes namespace called monitoring 
+# and applies Pod Security Admission labels to control what
+# kinds of pods can run there. In practice, it means the namespace 
+# allows workloads up to baseline at enforcement time, 
+# while still warning and auditing anything that would violate 
+# the stricter restricted profile.
+#
+# What it is
+# A namespace is just a logical boundary in Kubernetes for 
+# grouping resources like pods, services, config maps, and 
+# secrets. Here, the namespace is named monitoring, so 
+# anything you deploy into it will be governed by the labels 
+# attached to that namespace.
+#
+# The pod-security.kubernetes.io/* labels are part of Kubernetes 
+# Pod Security Admission, which replaced the old Pod Security 
+# Policy model. These labels let you apply Pod Security Standards 
+# at the namespace level without writing custom policy code.
+#
+# What each label does
+# pod-security.kubernetes.io/enforce: "baseline" means 
+# Kubernetes will block pods that do not meet the baseline policy. Baseline is a moderate security profile that prevents common risky settings while still allowing many normal workloads.
+#
+# pod-security.kubernetes.io/audit: "restricted" means 
+# Kubernetes will record audit annotations for pods that would fail the restricted policy, even if they are still allowed by enforce.
+#
+# pod-security.kubernetes.io/warn: "restricted" means 
+# users will see warnings when they try to create pods that violate restricted rules.
+#
+# So the effective behavior is: allow baseline-compliant 
+# pods, but alert you whenever something falls short of 
+# restricted. That is a common way to run a namespace where 
+# you want security visibility without breaking workloads 
+# immediately.
+#
+# Why baseline + restricted
+# This setup is usually used as a transition strategy. 
+# You enforce a security level that is strict enough to 
+# catch dangerous pod settings, but you warn and audit 
+# against a stricter target so teams can gradually harden 
+# workloads over time.
+#
+# For example, a monitoring stack may need some permissions 
+# or settings that are not compatible with restricted right away, especially if it includes exporters, agents, or components from third-party charts. Baseline gives you a practical middle ground while still nudging the namespace toward stronger security.
+#
+# Use cases
+# Protecting shared platform namespaces like monitoring, 
+# ingress, or logging with a reasonable default security level.
+#
+# Rolling out stricter pod security gradually instead of forcing 
+# every workload to comply immediately.
+#
+# Catching risky pod settings early through warnings and 
+# audit logs before turning them into hard failures.
+#
+# Supporting teams that need a few exceptions but still want 
+# a security baseline across the namespace.
+#
+# How to read this in practice
+# If a pod uses something disallowed by baseline, such as 
+# risky host-level access, Kubernetes will reject it from 
+# this namespace. If the pod is allowed by baseline but 
+# would violate restricted, it can still run, but you will 
+# get a warning and an audit record.
+#
+# A simple way to think about it is: enforce decides what 
+# is blocked, while warn and audit help you see what still 
+# needs hardening.
+#
+# One important note
+# This snippet only labels the namespace; it does not define 
+# pod security by itself beyond those admission checks. 
+# Also, many teams pin a version like enforce-version, audit-version, 
+# and warn-version to avoid behavior changes when Kubernetes 
+# updates policy defaults.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/enforce: "baseline"
+    pod-security.kubernetes.io/audit: "restricted"
+    pod-security.kubernetes.io/warn: "restricted"

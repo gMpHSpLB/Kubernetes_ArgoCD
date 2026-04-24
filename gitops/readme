@@ -1,0 +1,57 @@
+gitops/*: Argo CD Application definitions per env.
+This layout is directly GitOps‑friendly: Argo CD will point at ./infra/k8s and ./charts with the env‑specific values applied, instead of CI calling helm upgrade itself.
+
+Argo CD watches Git and applies whatever is declared in your repo. In practice, ./infra/k8s and ./charts contain the Kubernetes/Helm definitions, plus environment-specific values files, and Argo CD continuously syncs those definitions into the cluster.
+
+What it means
+“GitOps-friendly” means the deployment process is built around Git as the source of truth. When you change manifests or Helm values in Git, that change becomes the deployment request; Argo CD then reconciles the live cluster to match it.
+
+./infra/k8s usually refers to raw Kubernetes manifests or Kustomize-style environment config, while ./charts refers to Helm charts that template Kubernetes resources. “Env-specific values applied” means each environment, such as dev, staging, or prod, can have its own values file layered on top of the same chart or manifests, so the same app can be deployed differently per environment without duplicating everything.
+
+“Instead of CI calling helm upgrade itself” means the CI system is not the component that actually performs the cluster deployment. CI may still run tests, build images, package charts, or commit updated configuration to Git, but Argo CD handles the actual sync from Git to Kubernetes.
+
+Why this helps
+It reduces deployment drift because the cluster is constantly compared against what is committed in Git. If someone changes something manually in the cluster, Argo CD can detect the difference and bring it back in line with Git, which improves consistency and auditability.
+
+It also makes deployments more traceable. Instead of “a pipeline ran some command,” you get a clear Git commit that shows exactly what changed, when it changed, and who changed it, which is much easier to review and roll back.
+
+It separates responsibilities cleanly. CI focuses on building and validating software, while Argo CD focuses on deployment and synchronization, which makes the system simpler to reason about and usually safer to operate.
+
+Example flow
+A typical flow looks like this:
+
+You change values-prod.yaml or a manifest in Git.
+
+CI runs tests and maybe builds a new image.
+
+The updated Git commit is merged.
+
+Argo CD notices the repo change.
+
+Argo CD applies the new desired state to the cluster.
+
+So if production needs a different replica count, image tag, or ingress host, you change the environment-specific file in Git rather than editing the live cluster or embedding helm upgrade --set ... logic in CI.
+
+Why not CI helm upgrade
+Using helm upgrade from CI works, but it makes the pipeline responsible for both generating and applying the deployment state. That can be less transparent, harder to audit, and more fragile if different jobs or branches deploy different values in inconsistent ways.
+
+With Argo CD, the deployment intent lives in Git and the controller in the cluster applies it repeatedly. That is the core GitOps model: declarative desired state in Git, automated reconciliation in the cluster.
+
+Practical takeaway
+In plain English, the phrase means: “Put your Kubernetes deployment config in Git, let Argo CD watch that Git repo, and let CI stop being the thing that directly pushes to Kubernetes.” This is helpful because it improves reproducibility, reviewability, rollback, and protection against manual cluster changes.
+
+repo layout:::
+
+gitops/
+  dev/
+    argocd-app-monitoring.yaml
+    argocd-app-logging.yaml
+    argocd-app-myapp.yaml
+  staging/
+    argocd-app-monitoring.yaml
+    argocd-app-logging.yaml
+    argocd-app-myapp.yaml
+  prod/
+    argocd-app-monitoring.yaml
+    argocd-app-logging.yaml
+    argocd-app-myapp.yaml

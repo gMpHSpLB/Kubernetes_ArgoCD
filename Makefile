@@ -594,3 +594,134 @@ k8-deploy-mylearning:
 	  --set tests.smoke.enabled=false \
 	  --set tests.full.enabled=false
 
+# ---------- K8S OBSERVABILITY STACK ----------
+K8S_MONITORING_NAMESPACE ?= monitoring
+K8S_LOGGING_NAMESPACE ?= logging
+
+K8S_KPS_RELEASE ?= kps
+K8S_LOKI_RELEASE ?= loki
+
+K8S_KPS_VALUES_DEV ?= infra/k8s/monitoring/kube-prometheus-stack-values-dev.yaml
+K8S_LOKI_VALUES_DEV ?= infra/k8s/logging/loki-stack-values-dev.yaml
+
+K8S_RULES_DIR ?= infra/k8s/rules
+
+# Adding Helm chart repositories so Helm can find and 
+# install charts from Prometheus and Grafana later. 
+# In practice, it’s a one-time setup step on each machine, 
+# and it’s commonly used when you want to deploy monitoring 
+# tools into Kubernetes with Helm.
+#
+# What Helm repos are
+# A Helm repository is just a catalog of packaged Kubernetes 
+# applications called charts. When you add a repo, Helm stores 
+# its name and URL locally so you can reference charts from 
+# it using short names like prometheus-community/... 
+# or grafana/... instead of downloading them manually.
+#
+# For your example, these repositories are the official sources 
+# for commonly used monitoring charts:
+#
+# prometheus-community: charts for Prometheus-related components.
+# grafana: charts for Grafana and related tooling.
+#
+# Why this is useful
+# This is useful because Prometheus and Grafana are often 
+# installed through Helm in Kubernetes environments. Once 
+# the repos are added, you can deploy monitoring stacks quickly, 
+# keep chart versions manageable, and update them more easily 
+# than hand-writing all Kubernetes manifests.
+#
+# For someone building observability for a cluster, this is 
+# typically the first setup step before running helm install 
+# for Prometheus or Grafana charts.
+#
+# Line by line
+# helm-add-repos:
+# This is not a Helm command itself.
+# helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+# This tells Helm:
+# repository name: prometheus-community
+# repository URL: https://prometheus-community.github.io/helm-charts
+#
+# After this, you can install charts from that repo using the 
+# short repo name. 
+# For example, a Prometheus chart might be 
+# installed from that source without typing the full URL every time.
+#
+# helm repo add grafana https://grafana.github.io/helm-charts
+# This adds Grafana’s chart repository to Helm with the local 
+# name grafana. That lets you install Grafana charts such as 
+# grafana/grafana using Helm’s normal chart naming convention.
+#
+# helm repo update
+# This refreshes Helm’s local cache of chart metadata from all 
+# added repositories. It makes Helm aware of the latest chart 
+# versions and fixes the common issue where Helm can’t “see” 
+# new versions until you update the repo index.
+#
+# Typical use case
+	# A very common workflow is:
+	# Add the Prometheus and Grafana repositories.
+	# Update repo metadata.
+	# Install charts into a Kubernetes cluster.
+	# Customize values for storage, namespace, persistence, dashboards, and alerts
+# Which repo for what
+#	- kube-prometheus-stack → prometheus-community Helm repo.
+#	- loki-stack (Loki + Promtail) → grafana Helm repo.
+helm-add-repos:
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	helm repo add grafana https://grafana.github.io/helm-charts
+	helm repo update
+
+# A Helm-based installation target for deploying the kube-prometheus-stack 
+# chart into a Kubernetes cluster, usually for a development or local 
+# environment. It is a convenient wrapper around helm upgrade --install, 
+# so the same command works whether the release already exists or not.
+#
+#What it does
+# kube-prometheus-stack is a popular Helm chart that bundles the 
+# Prometheus Operator stack, Prometheus, Alertmanager, Grafana, 
+# and the Kubernetes monitoring rules and dashboards needed for 
+# observability.
+#
+# The goal is to install or update that stack in a namespace 
+# defined by variables, using a dev-specific values file so 
+# the deployment fits a local or lower-environment cluster.
+# helm upgrade --install $(K8S_KPS_RELEASE) prometheus-community/kube-prometheus-stack \
+# This is the main Helm action. helm upgrade --install means:
+# upgrade the release if it already exists,
+# otherwise install it fresh.
+# $(K8S_KPS_RELEASE) is a Make variable holding the release name, and prometheus-community/kube-prometheus-stack tells Helm which chart to use from the repo you added earlier.
+# -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
+# -n sets the Kubernetes namespace where the chart will be installed. --create-namespace tells Helm to create that namespace first if it does not already exist, so the install does not fail just because the namespace is missing.
+# -f $(K8S_KPS_VALUES_DEV)
+# This points Helm to a custom values file for the dev environment. That file usually overrides defaults such as storage settings, resource limits, ingress, scraping behavior, retention, or Grafana settings to match your local cluster and development needs
+# Practical use case
+#	A typical use case is:
+#		- you spin up a local Kubernetes cluster,
+# 		- add the Prometheus and Grafana chart repositories,
+# 		- then run this target to deploy observability components,
+#		- and finally open Grafana to inspect cluster metrics and dashboards.
+# Install/upgrade kube-prometheus-stack in dev (current kube-context)
+k8s-monitoring-dev: helm-add-repos
+	@echo "Installing/Upgrading kube-prometheus-stack (dev) in namespace $(K8S_MONITORING_NAMESPACE)..."
+	helm upgrade --install $(K8S_KPS_RELEASE) prometheus-community/kube-prometheus-stack \
+	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
+	  -f $(K8S_KPS_VALUES_DEV)
+
+# staging/prod variants now, you can extend with:
+K8S_KPS_VALUES_STAGING ?= infra/k8s/monitoring/kube-prometheus-stack-values-staging.yaml
+K8S_KPS_VALUES_PROD ?= infra/k8s/monitoring/kube-prometheus-stack-values-prod.yaml
+
+k8s-monitoring-staging: helm-add-repos
+	@echo "Installing/Upgrading kube-prometheus-stack (staging)..."
+	helm upgrade --install $(K8S_KPS_RELEASE)-staging prometheus-community/kube-prometheus-stack \
+	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
+	  -f $(K8S_KPS_VALUES_STAGING)
+
+k8s-monitoring-prod: helm-add-repos
+	@echo "Installing/Upgrading kube-prometheus-stack (prod)..."
+	helm upgrade --install $(K8S_KPS_RELEASE)-prod prometheus-community/kube-prometheus-stack \
+	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
+	  -f $(K8S_KPS_VALUES_PROD)
