@@ -108,3 +108,6 @@ securityContext:
   capabilities:
     drop:
       - ALL
+
+metrics:
+  enabled: true

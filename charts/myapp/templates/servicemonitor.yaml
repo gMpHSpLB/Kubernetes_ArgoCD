@@ -1,0 +1,84 @@
+# This file defines a Kubernetes ServiceMonitor for #Prometheus 
+# Operator, which tells Prometheus how to discover and #scrape 
+# metrics from your app’s Service. It is commonly used #when 
+# you run Prometheus via the kube-prometheus stack or #another 
+# Prometheus Operator setup.
+#
+# What it does
+# A ServiceMonitor is not your app itself; it is #monitoring 
+# metadata for Prometheus. It links a Kubernetes Service #to 
+# a metrics scrape configuration, so Prometheus knows which
+# service to watch, which path to call, how often to 
+# scrape,
+# and how long to wait.
+#
+# In your chart, this file is templated with Helm, so 
+# values 
+# like fullname, name, instance, and namespace are filled 
+# in dynamically when the chart is installed. 
+# The release: kps label is important because Prometheus 
+# usually selects ServiceMonitors by label, so this helps # the 
+# Prometheus instance discover this monitor.
+#
+# Use case
+# Use this when your app exposes Prometheus metrics over 
+# HTTP and you want Prometheus Operator to discover it 
+# automatically 
+# instead of manually editing Prometheus scrape configs. 
+# Typical use cases include API services, workers with an 
+# HTTP metrics endpoint, and microservices deployed in 
+# Kubernetes.
+#
+# For example, if your app exposes metrics at 
+# http://my-service:8080/metrics, and the Service has a 
+# port 
+# named http, this ServiceMonitor will instruct Prometheus 
+# to scrape that endpoint regularly. That is much cleaner 
+# than hardcoding scrape targets, especially in dynamic 
+# Kubernetes 
+# environments.
+#
+# Things to verify
+# Your Kubernetes Service must have a port named http, 
+# because 
+# port: http refers to the Service port name, not the 
+# container 
+# port number.
+#
+# Your Service must also carry the labels used in 
+# matchLabels, 
+# or the ServiceMonitor will not select it.
+#
+# Finally, your Prometheus instance must be configured to # select 
+# ServiceMonitors with release: kps; otherwise, the object # may exist but still not be scraped.
+#
+# Mental model
+# Think of it like this:
+#
+# Service = “here is the network endpoint for my app.”
+#
+# ServiceMonitor = “Prometheus, please watch this Service.”
+#
+# Prometheus Operator = “I will turn that instruction into # scrape jobs.”
+
+{{- if .Values.metrics.enabled }} # This is a Helm conditional. The whole resource is rendered only if metrics.enabled is set to true in values.yaml.
+apiVersion: monitoring.coreos.com/v1 # This says the resource uses the Prometheus Operator CRD API version for ServiceMonitor.
+kind: ServiceMonitor # This declares the Kubernetes object type as a ServiceMonitor
+metadata: # Metadata block for naming and labeling the resource
+  name: {{ include "myapp.fullname" . }} # Sets the ServiceMonitor name using a Helm helper template, usually producing a consistent app-specific name.
+  labels: # Labels attached to this ServiceMonitor resource.
+    release: kps # A label used so the Prometheus installation can select this ServiceMonitor. In many Helm-based monitoring stacks, the Prometheus instance only watches monitors with a matching release label.
+spec: # The actual ServiceMonitor behavior starts here
+  selector: # This tells ServiceMonitor which Kubernetes Services to target
+    matchLabels: # Only Services with these labels will be selected
+      app.kubernetes.io/name: {{ include "myapp.name" . }} # Matches the Service label for your app name.
+      app.kubernetes.io/instance: {{ .Release.Name }} # Matches the Service label for the Helm release instance. This is useful when multiple releases of the same chart exist in the cluster
+  namespaceSelector: # Tells ServiceMonitor which namespace(s) to look in for matching Service
+    matchNames: # Limits discovery to specific namespace
+      - {{ .Release.Namespace }} # Only Services in the same namespace as the Helm release will be monitored.
+  endpoints: # Defines one or more scrape targets on the selected Service
+    - port: http # Prometheus will scrape the Service port named http. This must match the port name in the Service definition
+      path: /metrics # Prometheus will request metrics from /metrics, which is the standard exposition path for many apps
+      interval: 15s # Prometheus will scrape every 15 seconds
+      scrapeTimeout: 10s # Prometheus gives each scrape request up to 10 seconds before timing out
+{{- end }} # Ends the Helm conditional block

@@ -97,6 +97,11 @@ prometheus:
           resources:
             requests:
               storage: 50Gi
+    # Pod security
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      fsGroup: 2000
 
 alertmanager:
   enabled: true
@@ -114,8 +119,8 @@ alertmanager:
     alertmanagerConfigSelector: {}
     # In production, use Alertmanager config delivered via Secret or values from secure GitOps.
     # Example:
-    # alertmanagerSpec:
-    #   configSecret: alertmanager-config
+    alertmanagerSpec:
+      configSecret: alertmanager-config
 
 grafana:
   enabled: true
@@ -154,3 +159,22 @@ grafana:
   rbac:
     create: true
   pspEnabled: false
+
+  # Persist Grafana data (dashboards, user prefs)
+  persistence:
+    enabled: true
+    storageClassName: standard
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+    
+  # Add Loki datasource here
+  additionalDataSources:
+    - name: loki
+      type: loki # declares this as a Loki datasource.
+      access: proxy # means Grafana proxies queries to Loki from the server side, which is standard in Kubernetes.
+      url: http://loki.logging.svc:3100 # must match the Loki service name/namespace; with helm upgrade --install loki ... -n logging the service will be loki.logging.svc:3100 by default
+      isDefault: false
+      jsonData:
+        maxLines: 1000
+        timeout: 60

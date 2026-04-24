@@ -345,6 +345,26 @@ dev-down:
 hit-api-multiple:
 	for i in {1..20}; do curl -s -o /dev/null http://localhost:8000/docs; done
 
+
+check-metrics-myapp:
+	@echo "Waiting for myapp metrics on http://localhost:8000/metrics ..."
+	@for i in 1 2 3 4 5; do \
+		sleep 5; \
+		if curl -sf http://localhost:8000/metrics > /dev/null; then \
+			echo "/metrics is up for myapp!"; \
+			exit 0; \
+		else \
+			echo "/metrics not ready yet for myapp (attempt $$i)..."; \
+		fi; \
+	done; \
+	echo "/metrics did not become ready in time for myapp"; \
+	exit 1
+
+check-metrics:
+	@echo "Checking /metrics for myapp on localhost..."
+	@$(MAKE) check-metrics-myapp
+
+
 #######################Deployment using Kubernetes ########################
 
 # Create or update K8s Secrets needed for dev/staging/prod
@@ -669,6 +689,12 @@ K8S_RULES_DIR ?= infra/k8s/rules
 # Which repo for what
 #	- kube-prometheus-stack → prometheus-community Helm repo.
 #	- loki-stack (Loki + Promtail) → grafana Helm repo.
+#
+# You can verify it from the Helm client, not by looking inside 
+# your git repository. The usual check is helm repo list, and 
+# for these specific repos you can also run helm search repo 
+# prometheus-community and helm search repo grafana to confirm 
+# Helm can see charts from them
 helm-add-repos:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo add grafana https://grafana.github.io/helm-charts
@@ -704,7 +730,7 @@ helm-add-repos:
 # 		- then run this target to deploy observability components,
 #		- and finally open Grafana to inspect cluster metrics and dashboards.
 # Install/upgrade kube-prometheus-stack in dev (current kube-context)
-k8s-monitoring-dev: helm-add-repos
+k8s-monitoring-dev: helm-add-repos ensure-minikube
 	@echo "Installing/Upgrading kube-prometheus-stack (dev) in namespace $(K8S_MONITORING_NAMESPACE)..."
 	helm upgrade --install $(K8S_KPS_RELEASE) prometheus-community/kube-prometheus-stack \
 	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
@@ -714,14 +740,52 @@ k8s-monitoring-dev: helm-add-repos
 K8S_KPS_VALUES_STAGING ?= infra/k8s/monitoring/kube-prometheus-stack-values-staging.yaml
 K8S_KPS_VALUES_PROD ?= infra/k8s/monitoring/kube-prometheus-stack-values-prod.yaml
 
-k8s-monitoring-staging: helm-add-repos
+k8s-monitoring-staging: helm-add-repos ensure-minikube
 	@echo "Installing/Upgrading kube-prometheus-stack (staging)..."
 	helm upgrade --install $(K8S_KPS_RELEASE)-staging prometheus-community/kube-prometheus-stack \
 	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
 	  -f $(K8S_KPS_VALUES_STAGING)
 
-k8s-monitoring-prod: helm-add-repos
+k8s-monitoring-prod: helm-add-repos ensure-minikube
 	@echo "Installing/Upgrading kube-prometheus-stack (prod)..."
 	helm upgrade --install $(K8S_KPS_RELEASE)-prod prometheus-community/kube-prometheus-stack \
 	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
 	  -f $(K8S_KPS_VALUES_PROD)
+
+# Install/upgrade Loki stack (Loki + Promtail) in dev
+k8s-logging-dev: helm-add-repos ensure-minikube
+	@echo "Installing/Upgrading Loki stack (dev) in namespace $(K8S_LOGGING_NAMESPACE)..."
+	helm upgrade --install $(K8S_LOKI_RELEASE) grafana/loki-stack \
+	  -n $(K8S_LOGGING_NAMESPACE) --create-namespace \
+	  -f $(K8S_LOKI_VALUES_DEV)
+
+k8s-logging-staging: helm-add-repos ensure-minikube
+	@echo "Installing/Upgrading Loki stack (staging) in namespace $(K8S_LOGGING_NAMESPACE)..."
+	helm upgrade --install $(K8S_LOKI_RELEASE) grafana/loki-stack \
+	  -n $(K8S_LOGGING_NAMESPACE) --create-namespace \
+	  -f $(K8S_LOKI_VALUES_STAGING)
+
+k8s-logging-prod: helm-add-repos ensure-minikube
+	@echo "Installing/Upgrading Loki stack (prod) in namespace $(K8S_LOGGING_NAMESPACE)..."
+	helm upgrade --install $(K8S_LOKI_RELEASE) grafana/loki-stack \
+	  -n $(K8S_LOGGING_NAMESPACE) --create-namespace \
+	  -f $(K8S_LOKI_VALUES_PROD)
+
+# Apply Prometheus rules (base + SLOs)
+# You already plan infra/k8s/rules/prometheus-rules-base.yaml and infra/k8s/rules/slo-rules-myapp.yaml. Wrap that as:
+# Apply all PrometheusRule manifests (base rules, SLOs, etc.)
+# Because kubectl apply -f dir/ recursively applies all YAML 
+# in that directory, this will pick up new rules automatically 
+# as you add them
+k8s-rules-apply:
+	@echo "Applying PrometheusRule resources from $(K8S_RULES_DIR)..."
+	kubectl apply -f $(K8S_RULES_DIR)
+
+# Finally, define a single target to bring up the entire observability 
+# stack in whatever cluster your current kube‑context points at:
+# Full observability stack for DEV in current cluster:
+# - kube-prometheus-stack (Prometheus, Alertmanager, Grafana)
+# - Loki + Promtail
+# - PrometheusRule files (base + SLOs)
+k8s-observability-dev: k8s-monitoring-dev k8s-logging-dev k8s-rules-apply
+	@echo "K8s observability stack (dev) deployed."
