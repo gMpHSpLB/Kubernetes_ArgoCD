@@ -1,14 +1,5 @@
 SHELL := /bin/bash
 
-# Default target
-.DEFAULT_GOAL := help
-
-# Self-documenting help: list targets with "##" comments
-.PHONY: help
-help:
-	@echo "Available targets:"
-	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2}'
-
 .PHONY: lint format type security quality security-deps docker-security-deps docker-scan docker-scan-dev-image \
         coverage smoke-test test docker-build docker-db docker-test run check-api clean-coverage clean \
         dev-up dev-down hit-api-multiple \
@@ -18,67 +9,8 @@ help:
 		deploy-minikube-db test-minikube-db k8s-test-db \
 		deploy-myapp-minikube-dev deploy-mylearning-minikube-dev \
 
-SHELL := /bin/bash
-
-# ---------- GLOBAL CONFIG ----------
-APP_ENV ?= dev
-
-# Control whether k8s-test re-creates Minikube or reuses existing cluster
-K8S_TEST_RECREATE ?= true
-
-# Local dev DB defaults
-DEV_DB_HOST ?= db
-DEV_DB_PORT ?= 5432
-DEV_DB_NAME ?= mydb
-DEV_DB_USER ?= myuser
-DEV_DB_PASSWORD ?= mypassword
-
-LOG_LEVEL ?= info
-
-# OTEL / Uptrace defaults (dev-only)
-OTEL_ENABLED ?= true
-OTEL_SERVICE_NAME ?= myapp-dev
-OTEL_EXPORTER_OTLP_ENDPOINT ?= api.uptrace.dev:4317
-UPTRACE_TOKEN ?= WLfJDCI9dKwaoXgI-Z-jFg
-UPTRACE_DSN ?= "https://WLfJDCI9dKwaoXgI-Z-jFg@api.uptrace.dev?grpc=4317"
-OTEL_TRACES_SAMPLER ?= always_on
-DISABLE_CUSTOM_MIDDLEWARE ?= false
-
-# Kubernetes directories
-K8S_NAMESPACE_DIR       ?= infra/k8s/namespaces
-K8S_MONITORING_DIR      ?= infra/k8s/monitoring
-K8S_NETWORKPOLICY_DIR   ?= $(K8S_MONITORING_DIR)/networkpolicies
-K8S_RULES_DIR           ?= infra/k8s/rules
-
-# Monitoring / logging namespaces
-K8S_MONITORING_NAMESPACE ?= monitoring
-K8S_LOGGING_NAMESPACE    ?= logging
-
-# kube-prometheus-stack / Loki releases & values
-K8S_KPS_RELEASE      ?= kps
-K8S_LOKI_RELEASE     ?= loki
-K8S_PROM_CRDS_RELEASE ?= prometheus-operator-crds
-K8S_PROM_CRDS_CHART   ?= prometheus-community/prometheus-operator-crds
-K8S_KPS_VALUES_DEV   ?= infra/k8s/monitoring/kube-prometheus-stack-values-dev.yaml
-K8S_KPS_VALUES_STAGING ?= infra/k8s/monitoring/kube-prometheus-stack-values-staging.yaml
-K8S_KPS_VALUES_PROD  ?= infra/k8s/monitoring/kube-prometheus-stack-values-prod.yaml
-K8S_LOKI_VALUES_DEV  ?= infra/k8s/logging/loki-stack-values-dev.yaml
-K8S_LOKI_VALUES_STAGING ?= infra/k8s/logging/loki-stack-values-staging.yaml
-K8S_LOKI_VALUES_PROD ?= infra/k8s/logging/loki-stack-values-prod.yaml
-
-# Alerting chart
-K8S_ALERTS_CHART_DIR ?= infra/k8s/rules/myapp-alerts
-K8S_ALERTS_RELEASE   ?= myapp-alerts
-K8S_ALERTS_NAMESPACE ?= monitoring
-
-# Grafana dashboards
-K8S_GRAFANA_DASHBOARD_CM_DIR ?= $(K8S_MONITORING_DIR)/grafana/configmaps
-
-
 ###############Code Quality ###############################
-.PHONY: lint format type security quality coverage smoke-test test test-docker clean-coverage clean
-
-lint: ## Run ruff lint on myapp and mylearning
+lint:
 	( cd myapp && poetry run ruff check . ) & \
 	P1=$$!; \
 	( cd mylearning && poetry run ruff check . ) & \
@@ -105,13 +37,6 @@ type:
 security: #Check in python code for security vulnerability
 	( cd myapp && poetry run bandit -r . -c bandit.yml ) & \
 	( cd mylearning && poetry run bandit -r . -c bandit.yml )
-
-quality:
-	@echo "Running code quality checks..."
-	@$(MAKE) lint
-	@$(MAKE) format
-	@$(MAKE) type
-	@$(MAKE) security
 
 ###############Security -- Dependencies ##########################
 # safety check scans for known CVEs; you can tune failure behavior with --fail-on flags depending on how strict you want CI to be.
@@ -201,7 +126,12 @@ docker-scan-dev-image:
 		--multi-stage \
 		--only-severity high,critical || true
 
-
+quality:
+	@echo "Running code quality checks..."
+	@$(MAKE) lint
+	@$(MAKE) format
+	@$(MAKE) type
+	@$(MAKE) security
 
 # This is combined coverage for both projects.
 # We have added this but not using it in our project
@@ -240,7 +170,7 @@ smoke-test:
 #		-vv shows even more detail: full node IDs 
 #		(module, class, function), useful when you 
 #		have many similarly named tests or use parametrization
-test: ## Run full pytest suite (both projects, parallel, with coverage)
+test:
 	@echo "Running tests in parallel..."
 	( cd myapp && USE_TESTCONTAINERS=true poetry run pytest -vv -n auto \
 		--log-cli-level=INFO \
@@ -356,10 +286,24 @@ clean:
 	@$(MAKE) clean-coverage
 
 # ---------- LOCAL DEV STACK WITH OBSERVABILITY ----------
+APP_ENV ?=dev
+DEV_DB_HOST ?= db
+DEV_DB_PORT ?= 5432
+DEV_DB_NAME ?= mydb
+DEV_DB_USER ?= myuser
+DEV_DB_PASSWORD ?= mypassword
+LOG_LEVEL ?= info
+DISABLE_CUSTOM_MIDDLEWARE 	?=false
+OTEL_ENABLED ?= true
+OTEL_SERVICE_NAME ?= myapp-dev
+OTEL_EXPORTER_OTLP_ENDPOINT ?= api.uptrace.dev:4317
+UPTRACE_TOKEN ?= WLfJDCI9dKwaoXgI-Z-jFg
+UPTRACE_DSN ?="https://WLfJDCI9dKwaoXgI-Z-jFg@api.uptrace.dev?grpc=4317"
+OTEL_TRACES_SAMPLER ?= always_on
 # Builds local dev images (myapp:latest, mylearning:latest)
 # Run full dev stack: db + myapp + mylearning + prometheus + grafana
 # Run full dev stack: db + myapp + mylearning + prometheus + grafana
-dev-up: docker-build  ## Start local dev stack (db + myapp + mylearning + Prometheus + Grafana)
+dev-up: docker-build
 	APP_ENV=${APP_ENV} \
 	IMAGE_MYAPP=myapp:latest \
 	IMAGE_MYLEARNING=mylearning:latest \
@@ -421,8 +365,30 @@ check-metrics:
 	@$(MAKE) check-metrics-myapp
 
 
-######Deployment using Kubernetes K8S CLUSTER / NAMESPACES (MINIKUBE)########################
-.PHONY: ensure-minikube recreate-minikube install-prometheus-operator-crds k8s-namespaces-all k8s-namespace-monitoring k8s-namespaces-myapp
+#######################Deployment using Kubernetes ########################
+K8S_MONITORING_NAMESPACE ?= monitoring
+K8S_LOGGING_NAMESPACE ?= logging
+
+K8S_KPS_RELEASE ?= kps
+K8S_LOKI_RELEASE ?= loki
+
+K8S_KPS_VALUES_DEV ?= infra/k8s/monitoring/kube-prometheus-stack-values-dev.yaml
+K8S_KPS_VALUES_STAGING ?= infra/k8s/monitoring/kube-prometheus-stack-values-staging.yaml
+K8S_KPS_VALUES_PROD ?= infra/k8s/monitoring/kube-prometheus-stack-values-prod.yaml
+
+K8S_LOKI_VALUES_DEV ?= infra/k8s/logging/loki-stack-values-dev.yaml
+K8S_LOKI_VALUES_STAGING ?= infra/k8s/logging/loki-stack-values-staging.yaml
+K8S_LOKI_VALUES_PROD    ?= infra/k8s/logging/loki-stack-values-prod.yaml
+
+K8S_MONITORING_DIR ?= infra/k8s/monitoring
+K8S_GRAFANA_DASHBOARD_CM_DIR ?= $(K8S_MONITORING_DIR)/grafana/configmaps
+K8S_NAMESPACE_DIR ?= infra/k8s/namespaces
+K8S_RULES_DIR ?= infra/k8s/rules
+K8S_ALERTS_CHART_DIR ?= infra/k8s/rules/myapp-alerts
+K8S_NETWORKPOLICY_DIR ?= $(K8S_MONITORING_DIR)/networkpolicies
+
+K8S_ALERTS_RELEASE   ?= myapp-alerts
+K8S_ALERTS_NAMESPACE ?= monitoring
 
 # Create or update K8s Secrets needed for dev/staging/prod
 # Leading - before kubectl delete tells make: ignore error if the secret doesn’t exist.
@@ -455,43 +421,22 @@ recreate-minikube:
 	minikube delete --all=true --purge=true || true
 	minikube start --memory=3072 --cpus=2
 
-# Why we used monitoring namespace for CRDs
-# CRDs themselves are cluster-scoped, 
-# so helm install ... --namespace monitoring doesn't actually 
-# put the CRD in the monitoring namespace—it installs it cluster-wide. 
-# But we used your existing K8S_MONITORING_NAMESPACE variable for 
-# consistency with your monitoring setup.
-#
-# The real reason was pattern matching: your Makefile already 
-# has K8S_MONITORING_NAMESPACE ?= monitoring for kube-prometheus-stack, 
-# so using the same variable keeps your monitoring infra organized.
-install-prometheus-operator-crds: ## Install Prometheus Operator CRDs for Minikube
-	@echo "Adding Prometheus Community repo and installing CRDs..."
-	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts || true
-	helm repo update
-	helm upgrade --install $(K8S_PROM_CRDS_RELEASE) $(K8S_PROM_CRDS_CHART) \
-		--namespace $(K8S_MONITORING_NAMESPACE) --create-namespace
-
 # targets to apply namespaces
 # 	- monitoring exists (with PSA and name=monitoring label used by NetworkPolicy).
 #	- myapp-dev, myapp-staging, myapp-prod exist before you deploy.
 
-.PHONY: k8s-namespace-monitoring k8s-namespace-myapp-local k8s-namespaces-myapp k8s-namespaces-all
+.PHONY: k8s-namespace-monitoring k8s-namespaces-myapp k8s-namespaces-all
 
 k8s-namespace-monitoring:
 	@echo "Applying monitoring namespace..."
 	kubectl apply -f $(K8S_NAMESPACE_DIR)/monitoring.yaml
 
-k8s-namespace-myapp-local:
-	@echo "Applying myapp-local namespace..."
-	kubectl apply -f $(K8S_NAMESPACE_DIR)/myapp-local.yaml
-
 k8s-namespaces-myapp:
 	@echo "Applying myapp dev/staging/prod namespaces with PSA labels..."
 	kubectl apply -f $(K8S_NAMESPACE_DIR)/myapp-namespaces.yaml
 
-k8s-namespaces-all: k8s-namespace-monitoring k8s-namespaces-myapp k8s-namespace-myapp-local
-	@echo "Core namespaces (monitoring + myapp envs + local) applied."
+k8s-namespaces-all: k8s-namespace-monitoring k8s-namespaces-myapp
+	@echo "Core namespaces (monitoring + myapp envs) applied."
 
 # Appliy Network Policy
 .PHONY: k8s-netpol-dev k8s-netpol-staging k8s-netpol-prod k8s-netpol-all
@@ -511,8 +456,6 @@ k8s-netpol-prod:
 k8s-netpol-all: k8s-netpol-dev k8s-netpol-staging k8s-netpol-prod
 	@echo "NetworkPolicies for myapp metrics applied for dev, staging, and prod."
 
-
-# ---------- K8S APP DEPLOY (HELM) ----------
 # This uses helm upgrade --install as recommended for idempotent deploys and 
 # overlays environment-specific values via -f values-local.yaml
 #		- Ensure Minikube is running/using local Docker (optional).
@@ -530,19 +473,16 @@ k8s-netpol-all: k8s-netpol-dev k8s-netpol-staging k8s-netpol-prod
 #   also define it in the chart, you create two controllers of 
 #   the same resource, which is exactly what caused your error
 #   Builds images into minikube's Docker, then deploys. Restores host Docker env afterwards.
-#   depend on CRDs and enable ServiceMonitor
-deploy-minikube-local: ensure-minikube k8s-namespace-myapp-local install-prometheus-operator-crds ## Deploy myapp/mylearning to Minikube (builds images + Helm)
+deploy-minikube-local: ensure-minikube
 	@echo "Using Minikube Docker daemon..."
 	eval "$$(minikube docker-env)" && \
 	docker build -t myapp:mklatest -f myapp/Dockerfile . && \
 	docker build -t mylearning:mklatest -f mylearning/Dockerfile . --build-arg INSTALL_DEV=true && \
 	eval "$$(minikube docker-env -u)"
-	@echo "Deploying myapp to Minikube (myapp-local namespace) with Helm..."
+	@echo "Deploying myapp to Minikube with Helm..."
 	helm upgrade --install myapp-mklatest charts/myapp \
-	  -n myapp-local --create-namespace \
 	  -f charts/myapp/values-local.yaml \
-	  --set image.fullName="myapp:mklatest" \
-	  --set serviceMonitor.enabled=false
+	  --set image.fullName="myapp:mklatest"
 	@echo "Deploying mylearning to Minikube with Helm (with test jobs enabled)..."
 	helm upgrade --install mylearning-mklatest charts/mylearning \
 	  -f charts/mylearning/values.yaml \
@@ -589,9 +529,9 @@ deploy-minikube-local-clean: recreate-minikube deploy-minikube-local
 # 	- Runs pytest in your local env (just like smoke-test / test).
 # 	- Cleans up the port‑forward.
 #USE_TESTCONTAINERS=true
-test-minikube: #deploy-minikube-local
+test-minikube: deploy-minikube-local
 	@echo "Starting port-forward from Minikube service to localhost:8000..."
-	@kubectl port-forward -n myapp-local svc/myapp-mklatest-myapp 8000:8000 >/tmp/kube-pf-myapp.log 2>&1 & \
+	@kubectl port-forward svc/myapp-mklatest-myapp 8000:8000 >/tmp/kube-pf-myapp.log 2>&1 & \
 	PF_PID=$$!; \
 	sleep 5; \
 	echo "Running smoke tests against Minikube app myapp..."; \
@@ -606,9 +546,9 @@ test-minikube: #deploy-minikube-local
 		--log-cli-format="%(asctime)s %(levelname)s [%(name)s] %(message)s" )
 
 # USE_TESTCONTAINERS=true
-test-minikube-all: #deploy-minikube-local
+test-minikube-all: deploy-minikube-local
 	@echo "Starting port-forward from Minikube service to localhost:8000..."
-	@kubectl port-forward -n myapp-local svc/myapp-mklatest-myapp 8000:8000 >/tmp/kube-pf-myapp.log 2>&1 & \
+	@kubectl port-forward svc/myapp-mklatest-myapp 8000:8000 >/tmp/kube-pf-myapp.log 2>&1 & \
 	PF_PID=$$!; \
 	sleep 5; \
 	echo "Running all tests against Minikube app myapp..."; \
@@ -627,9 +567,9 @@ test-minikube-all: #deploy-minikube-local
 		--cov-report=xml:coverage-mylearning.xml --cov-fail-under=20 )
 
 # URL access / health check for Minikube (like check-api)
-check-minikube-api: #deploy-minikube-local
+check-minikube-api: deploy-minikube-local
 	@echo "Port-forwarding myapp-mklatest-myapp service to localhost:8000 for health check..."
-	@kubectl port-forward -n myapp-local svc/myapp-mklatest-myapp 8000:8000 >/tmp/kube-pf-myapp.log 2>&1 & \
+	@kubectl port-forward svc/myapp-mklatest-myapp 8000:8000 >/tmp/kube-pf-myapp.log 2>&1 & \
 	PF_PID=$$!; \
 	for i in 1 2 3 4 5; do \
 	  sleep 5; \
@@ -650,27 +590,8 @@ check-minikube-api: #deploy-minikube-local
 # 	- Deploy via Helm.
 # 	- Run smoke tests against the live Minikube app.
 # 	- Confirm /docs is reachable via port‑forward.
-.PHONY: k8s-test k8s-test-no-recreate
-
-#Fresh run (wipe cluster): make k8s-test (default).
-k8s-test:
-ifeq ($(K8S_TEST_RECREATE),true)
-	@echo "Running k8s-test with full Minikube recreate..."
-	$(MAKE) deploy-minikube-local-clean
-else
-	@echo "Running k8s-test without recreating Minikube (reusing existing cluster)..."
-	$(MAKE) deploy-minikube-local
-endif
-	$(MAKE) test-minikube
-	$(MAKE) test-minikube-all
-	$(MAKE) check-minikube-api
+k8s-test: deploy-minikube-local-clean test-minikube test-minikube-all check-minikube-api
 	@echo "Minikube deploy + pytest smoke + API health check completed."
-
-# Reuse existing cluster for quicker metrics iteration:
-# Convenience alias to always skip recreate
-k8s-test-no-recreate:
-	@echo "Running k8s-test with K8S_TEST_RECREATE=false..."
-	K8S_TEST_RECREATE=false $(MAKE) k8s-test
 
 # That will create:
 # 	Deployment: mydb-postgres
@@ -705,7 +626,7 @@ test-minikube-db: deploy-minikube-db deploy-minikube-local
 # Want to hit the app via HTTP, extend this with an app port‑forward
 k8s-test-db: deploy-minikube-db deploy-minikube-local
 	@echo "Port-forwarding myapp and Postgres from Minikube..."
-	@kubectl port-forward -n myapp-local svc/myapp-mklatest-myapp 8000:8000 >/tmp/kube-pf-app.log 2>&1 & \
+	@kubectl port-forward svc/myapp-mklatest-myapp 8000:8000 >/tmp/kube-pf-app.log 2>&1 & \
 	PF_APP_PID=$$!; \
 	kubectl port-forward svc/mydb-postgres 5433:5432 >/tmp/kube-pf-db.log 2>&1 & \
 	PF_DB_PID=$$!; \
@@ -729,37 +650,6 @@ k8s-test-db: deploy-minikube-db deploy-minikube-local
 	fi; \
 	echo "Stopping port-forwards..."; \
 	kill $$PF_APP_PID $$PF_DB_PID || true
-
-.PHONY: k8s-port-forward-prometheus k8s-port-forward-grafana
-# Port-forward helpers for Prometheus and Grafana
-k8s-port-forward-prometheus:
-	@echo "Port-forwarding Prometheus (kube-prometheus-stack) to http://localhost:9091 ..."
-	kubectl port-forward -n $(K8S_MONITORING_NAMESPACE) svc/$(K8S_KPS_RELEASE)-kube-prometheus-stack-prometheus 9091:9090
-
-k8s-port-forward-grafana:
-	@echo "Port-forwarding Grafana (kube-prometheus-stack) to http://localhost:3001 ..."
-	kubectl port-forward -n $(K8S_MONITORING_NAMESPACE) svc/$(K8S_KPS_RELEASE)-grafana 3001:80
-
-.PHONY: k8s-test-observability
-# Add k8s-test-observability target
-# This will:
-# 	Run k8s-test (deploy + tests).
-# 	Install monitoring/logging.
-# 	Apply dev dashboards and alerts.
-# 	Print port-forward commands for Prometheus and Grafana.
-k8s-test-observability:
-	@echo "=== Step 1: Running k8s-test (Minikube deploy + tests) ==="
-	$(MAKE) k8s-test
-	@echo "=== Step 2: Installing monitoring (kube-prometheus-stack) in Minikube ==="
-	$(MAKE) k8s-monitoring-dev
-	@echo "=== Step 3: Installing logging (Loki stack) in Minikube ==="
-	$(MAKE) k8s-logging-dev
-	@echo "=== Step 4: Applying dev Grafana dashboards and alert rules ==="
-	$(MAKE) k8s-grafana-dashboards-dev
-	$(MAKE) k8s-alerts-dev
-	@echo "=== Done. Now on different terminal you can port-forward Prometheus and Grafana using: ==="
-	@echo "  make k8s-port-forward-prometheus"
-	@echo "  make k8s-port-forward-grafana"
 
 # Your deploy-minikube-dev target pulls prebuilt images from GHCR and doesn’t touch Docker env
 # Usage:
@@ -1138,7 +1028,7 @@ k8s-logging-all: k8s-logging-dev k8s-logging-staging k8s-logging-prod
 # - Loki + Promtail
 # - PrometheusRule files (base + SLOs) + Dashboard
 # - applies NetworkPolicies.
-k8s-observability-dev: k8s-namespaces-all k8s-monitoring-dev k8s-logging-dev k8s-alerts-dev k8s-grafana-dashboards-dev k8s-netpol-dev ## Deploy full observability stack to dev cluster (namespaces, monitoring, logging, alerts, dashboards, netpol)
+k8s-observability-dev: k8s-namespaces-all k8s-monitoring-dev k8s-logging-dev k8s-alerts-dev k8s-grafana-dashboards-dev k8s-netpol-dev
 	@echo "K8s observability stack (dev) deployed  (namespaces, monitoring, logging, rules, dashboards, netpol)."
 
 k8s-observability-staging: k8s-namespaces-all k8s-monitoring-staging k8s-logging-staging k8s-alerts-staging k8s-grafana-dashboards-staging k8s-netpol-staging
@@ -1156,39 +1046,3 @@ k8s-observability-prod: k8s-monitoring-prod k8s-logging-prod k8s-alerts-prod k8s
 #   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY for prod Loki
 k8s-observability-all: k8s-observability-dev k8s-observability-staging k8s-observability-prod
 	@echo "K8s observability stack deployed for dev, staging, and prod."
-
-
-.PHONY: k8s-clean-minikube k8s-clean-namespaces k8s-clean-pvcs
-
-# Delete key app/infra namespaces but keep Minikube VM + images
-k8s-clean-minikube:
-	@echo "=== Cleaning Minikube workloads (namespaces + PVCs) without deleting cluster... ==="
-	$(MAKE) k8s-clean-namespaces
-	$(MAKE) k8s-clean-pvcs
-	@echo "=== Minikube workloads cleaned. Cluster and image cache are still intact. ==="
-
-# Delete namespaces you own
-k8s-clean-namespaces:
-	@echo "Deleting application and infra namespaces (if they exist)..."
-	# app env namespaces
-	kubectl delete namespace myapp-dev --ignore-not-found
-	kubectl delete namespace myapp-staging --ignore-not-found
-	kubectl delete namespace myapp-prod --ignore-not-found
-	# local namespace
-	kubectl delete namespace myapp-local --ignore-not-found
-	# monitoring/logging
-	kubectl delete namespace $(K8S_MONITORING_NAMESPACE) --ignore-not-found
-	kubectl delete namespace $(K8S_LOGGING_NAMESPACE) --ignore-not-found
-
-# Optionally clean PVCs cluster-wide (dev-only)
-# The PVC wipe is dev‑only; if you ever mount hostPath or external volumes, this won’t touch them, only Kubernetes PVC objects
-k8s-clean-pvcs:
-	@echo "Deleting all PersistentVolumeClaims in the cluster (dev-only)..."
-	kubectl delete pvc --all --all-namespaces || true
-
-.PHONY: k8s-nuke
-
-k8s-nuke:
-	@echo "!!! FULL NUKE: cleaning namespaces/PVCs and recreating Minikube cluster !!!"
-	$(MAKE) k8s-clean-minikube
-	$(MAKE) recreate-minikube

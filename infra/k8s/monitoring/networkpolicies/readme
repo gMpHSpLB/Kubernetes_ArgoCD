@@ -1,0 +1,41 @@
+1. Concepts and goals
+    Pod Security Admission (PSA): namespace labels like
+    pod-security.kubernetes.io/enforce: baseline or restricted
+    define the security posture for all pods in that namespace. You already mentioned “you saw PSA labels on namespaces”. This prevents overly‑privileged pods, which is important for components like Grafana, Prometheus, exporters.
+
+    Resource requests/limits: you already set them in your kube‑prometheus‑stack values (Prometheus, Alertmanager, Prometheus Operator, Grafana). That’s about cost control and stability.
+
+    NetworkPolicy for scraping: by default, if your CNI enforces NetworkPolicy, pods cannot talk freely unless allowed. You want:
+
+        - Prometheus (in monitoring namespace) can scrape:
+
+            - myapp pods’ /metrics in dev/staging/prod namespaces.
+
+            - Node exporter, kubelet, etc., as necessary.
+
+        - Other pods cannot hit /metrics everywhere
+
+2. Pattern: allow scrape only from Prometheus namespace
+We’ll use the classic pattern:
+
+    Label the monitoring namespace (where Prometheus runs) with something like name=monitoring.
+
+    In app namespaces (dev, staging, prod or equivalents), define NetworkPolicies that:
+
+        - Select your metrics‑serving pods (e.g. app=myapp) with podSelector.
+
+        - Allow ingress only from pods in namespace with label name=monitoring.
+
+This is more robust than listing pod IPs or names.
+
+3. infra/k8s/monitoring/
+  networkpolicies/
+    networkpolicy-myapp-metrics-dev.yaml
+    networkpolicy-myapp-metrics-staging.yaml
+    networkpolicy-myapp-metrics-prod.yaml
+  ...
+Reasoning:
+
+    - They’re part of the observability/security story, and they directly impact Prometheus’ ability to scrape.
+
+    - Keeping them under monitoring/ keeps all monitoring‑related infrastructure together and aligns with your GitOps layout

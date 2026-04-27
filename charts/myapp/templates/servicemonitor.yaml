@@ -60,7 +60,17 @@
 # ServiceMonitor = “Prometheus, please watch this Service.”
 #
 # Prometheus Operator = “I will turn that instruction into # scrape jobs.”
-
+# Note:
+# ServiceMonitor is a custom resource, not a built-in Kubernetes object, 
+# and it only works after the Prometheus Operator CRDs are present in 
+# the cluster. Helm will not magically create that API kind unless the 
+# CRD already exists in the cluster
+# Install the Prometheus Operator CRDs into Minikube before deploying your app.
+# Note: 
+#   - Prometheus Operator is a Kubernetes-native controller that watches Prometheus-related custom resources and turns them into scrape configuration and running monitoring objects. It manages resources like ServiceMonitor, which tells Prometheus how to scrape metrics from a group of Services.
+#   - A Prometheus Operator CRD is the Kubernetes CustomResourceDefinition for those resources, such as ServiceMonitor, PodMonitor, Prometheus, and related objects. Without the CRD, Kubernetes does not know what apiVersion: monitoring.coreos.com/v1 and kind: ServiceMonitor mean.
+#   - Helm CRDs are Kubernetes CustomResourceDefinition manifests that Helm can install, usually from a chart’s crds/ directory, before rendering templates. The key distinction is: the CRD defines the type, and the ServiceMonitor object is an instance of that type.
+{{- if and .Values.serviceMonitor.enabled .Capabilities.APIVersions.Has "monitoring.coreos.com/v1" }}
 {{- if .Values.metrics.enabled }} # This is a Helm conditional. The whole resource is rendered only if metrics.enabled is set to true in values.yaml.
 apiVersion: monitoring.coreos.com/v1 # This says the resource uses the Prometheus Operator CRD API version for ServiceMonitor.
 kind: ServiceMonitor # This declares the Kubernetes object type as a ServiceMonitor
@@ -82,3 +92,4 @@ spec: # The actual ServiceMonitor behavior starts here
       interval: 15s # Prometheus will scrape every 15 seconds
       scrapeTimeout: 10s # Prometheus gives each scrape request up to 10 seconds before timing out
 {{- end }} # Ends the Helm conditional block
+{{- end }}

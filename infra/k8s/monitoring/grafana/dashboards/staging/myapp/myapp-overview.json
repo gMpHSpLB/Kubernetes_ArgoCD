@@ -1,0 +1,14 @@
+{
+  "id": null,
+  "uid": "myapp-overview",
+  "title": "MyApp Overview (staging)",
+  "tags": ["myapp", "staging"],
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "panels": [],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  }
+}

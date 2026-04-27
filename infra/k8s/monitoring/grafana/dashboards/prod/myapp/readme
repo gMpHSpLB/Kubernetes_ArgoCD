@@ -1,0 +1,31 @@
+ The two JSON files play different roles, similar to infra:
+
+myapp-overview.json
+
+    - A general service overview dashboard.
+
+    - Use it to show high‑level metrics: request rate, error rate, p95 latency, pod restarts, deployment status, etc.
+
+    - This is what most people (devs, QA, product) will open first when they “just want to see if myapp is healthy.”
+
+myapp-slo.json
+
+    - A focused SLO / error‑budget dashboard.
+
+    - Dedicated to SLO metrics and burn‑rate series you just implemented:
+
+        SLO target (99.9%).
+
+        Error budget remaining.
+
+        Burn‑rate over 5m/30m windows.
+
+        Historical SLO performance.
+
+    - This is mainly for SRE/on‑call and people who care about reliability across weeks/months, not just “is it red right now.”
+
+Reason to split:
+
+    - The overview dashboard stays simple and operational (“is myapp ok now?”).
+
+    - The SLO dashboard can be more analytical and long‑term (“are we on track to meet our SLO?”), without cluttering the main view.

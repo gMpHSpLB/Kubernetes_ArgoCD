@@ -1,0 +1,34 @@
+A Kubernetes namespace is a virtual cluster inside your physical cluster that provides resource isolation and organization. Your K8S_MONITORING_NAMESPACE ?= monitoring groups all monitoring resources (Prometheus, Grafana, ServiceMonitors) together so they don't clash with your app resources.
+
+What namespaces do
+Namespaces create scope for namespaced resources like Deployments, Services, Pods, Secrets, and ConfigMaps. Names must be unique within a namespace, but you can reuse names across namespaces.
+
+text
+# These can coexist:
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp          # OK in 'default' namespace
+  namespace: default
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp          # OK in 'monitoring' namespace  
+  namespace: monitoring
+
+Cluster-wide resources (CRDs, Nodes, PersistentVolumes, StorageClasses) ignore namespaces and exist globally.
+
+Key use cases
+Use Case	                    Why Namespace Helps
+Multi-team clusters	            Team A deploys myapp in team-a, Team B deploys myapp in team-b 
+Environment separation	        myapp-dev, myapp-staging, myapp-prod coexist 
+Monitoring isolation	        Prometheus/Grafana in monitoring, apps in default 
+Resource quotas	Limit           CPU/memory per namespace for cost control 
+RBAC scoping	                Users see/manage only their namespace 
+
+You’re already doing PSA correctly for monitoring. To implement the “explicit app namespaces” approach, you’ll:
+
+    - Add namespaces for myapp-dev, myapp-staging, myapp-prod with PSA labels.
+
+    - Add NetworkPolicies in those namespaces that only allow Prometheus (in monitoring) to hit /metrics.

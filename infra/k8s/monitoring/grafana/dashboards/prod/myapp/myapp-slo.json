@@ -1,0 +1,14 @@
+{
+  "id": null,
+  "uid": "myapp-slo",
+  "title": "MyApp SLO (prod)",
+  "tags": ["myapp", "slo", "prod"],
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "panels": [],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  }
+}

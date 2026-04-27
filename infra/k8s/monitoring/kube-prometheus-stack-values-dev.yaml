@@ -129,14 +129,14 @@ grafana:
     pspEnabled: false # disables PodSecurityPolicy support.
   
   grafana.ini:
-  auth:
-    disable_login_form: false   # keep form login in dev, keep the login form enabled (you can later switch to true when SSO is fully configured and you want only SSO)
-  users:
-    viewers_can_edit: true      # allow experiments in dev, Grafana viewers cannot edit dashboards; only editors/admins can. This is key for “prod dashboards are read‑only for most people”
-  dashboards:
-    default_home_dashboard_path: /var/lib/grafana/dashboards/home.json # Sets the default home dashboard to a JSON file at that path. You’d typically ship that via a ConfigMap volume.
-  security:
-    allow_embedding: true # Allows embedding Grafana panels in iframes (e.g., internal portals, Confluence). Keep an eye on security/CSRF when using this
+    auth:
+      disable_login_form: false   # keep form login in dev, keep the login form enabled (you can later switch to true when SSO is fully configured and you want only SSO)
+    users:
+      viewers_can_edit: true      # allow experiments in dev, Grafana viewers cannot edit dashboards; only editors/admins can. This is key for “prod dashboards are read‑only for most people”
+    dashboards:
+      default_home_dashboard_path: /var/lib/grafana/dashboards/home.json # Sets the default home dashboard to a JSON file at that path. You’d typically ship that via a ConfigMap volume.
+    security:
+      allow_embedding: true # Allows embedding Grafana panels in iframes (e.g., internal portals, Confluence). Keep an eye on security/CSRF when using this
 
   # Add Loki datasource here
   additionalDataSources:
@@ -164,7 +164,7 @@ grafana:
           type: file
           options:
             path: /var/lib/grafana/dashboards/myapp
-  # it creates volumes from ConfigMaps named 
+  # It creates volumes from ConfigMaps named 
   # grafana-dashboards-infra and grafana-dashboards-myapp 
   # and mounts them into the paths referenced above.
   dashboardsConfigMaps:

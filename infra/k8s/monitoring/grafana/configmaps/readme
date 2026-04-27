@@ -1,0 +1,25 @@
+ConfigMaps wrap those JSON files for Kubernetes. You have two options:
+
+Option A – manually paste JSON (simpler, more manual)
+Example: infra/k8s/monitoring/grafana/configmaps/grafana-dashboards-infra-prod.yaml:
+
+text
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-infra
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  home.json: |
+    { ... prod/infra/home.json content ... }
+  k8s-overview.json: |
+    { ... prod/infra/k8s-overview.json content ... }
+Similarly, grafana-dashboards-myapp-prod.yaml for prod/myapp/*.json, and equivalents for dev/staging. kube‑prometheus‑stack will mount each ConfigMap into /var/lib/grafana/dashboards/{infra,myapp} based on your dashboardsConfigMaps values.
+
+Pros: trivial to implement.
+Cons: diff is a bit noisy (embedded JSON).
+
+Option B – generate ConfigMaps from files (better for scaling)
+You keep JSON as files, and use a generator (kustomize configMapGenerator, small script, or Helm) to build ConfigMaps from those files. Example with kustomize approach is commonly used in GitOps

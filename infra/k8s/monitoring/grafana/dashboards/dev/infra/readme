@@ -1,0 +1,17 @@
+The infra folder has two JSON files simply because they represent two different dashboards:
+
+    - home.json – a very simple “Infra Home” dashboard you can set as default home (via default_home_dashboard_path). This is the landing page for infra users.
+
+    - k8s-overview.json – a separate “Kubernetes Overview” dashboard focusing on cluster health (nodes, pods, API server, etc.), which you may link from the home dashboard or bookmark separately.
+
+You could think of infra as the “infrastructure team’s space” in Grafana:
+
+    - One dashboard is a general entry point (home).
+
+    - The other is a more detailed view for a specific concern (Kubernetes).
+
+There is nothing special about having exactly two; it just mirrors a common pattern:
+
+    - One high‑level summary dashboard.
+
+    - One or more focus dashboards (Kubernetes, nodes, networking, etc.)

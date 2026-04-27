@@ -353,6 +353,7 @@ jobs:
         run: |
           make k8-deploy-myapp \
             CHART_NAME="myapp-dev" \
+            K8S_NAMESPACE=myapp-dev \
             ENV_VALUES="environments/dev/values-myapp.yaml"
             MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_dev }}
             
@@ -461,6 +462,7 @@ jobs:
         run: |
           make k8-deploy-myapp \
             CHART_NAME="myapp-staging" \
+            K8S_NAMESPACE=myapp-staging \
             ENV_VALUES="environments/staging/values-myapp.yaml"
             MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_staging }}
             
@@ -552,6 +554,7 @@ jobs:
         run: |
           make k8-deploy-myapp \
             CHART_NAME="myapp-prod" \
+            K8S_NAMESPACE=myapp-prod \
             ENV_VALUES="environments/prod/values-myapp.yaml"
             MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_prod }}
             

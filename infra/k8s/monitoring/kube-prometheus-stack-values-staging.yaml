@@ -131,7 +131,7 @@ grafana:
   # Do NOT hardcode production passwords here.
   # Use existingSecret, External Secrets, Vault, SealedSecrets, or a GitOps-managed Secret.
   admin:
-    existingSecret: grafana-admin-credentials
+    existingSecret: grafana-admin-credentials-staging
     userKey: admin-user
     passwordKey: admin-password
 

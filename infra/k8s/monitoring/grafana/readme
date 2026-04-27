@@ -1,0 +1,26 @@
+High‑level structure
+Under infra/k8s/monitoring, use three layers:
+
+    - grafana/ – logical “dashboards as code” root.
+
+    - dashboards/ – JSON sources grouped by env and domain.
+
+    - configmaps/ – K8s ConfigMap manifests wired to kube‑prometheus‑stack dashboardsConfigMaps
+
+How this supports RBAC and env separation
+Because each environment’s Grafana instance:
+
+    - Uses different ConfigMap names (mapped in their respective values-*.yaml).
+
+    - Has different folders (e.g., infra-dev, infra-staging, infra for prod), configured via dashboardProviders.
+
+You get:
+
+    - Clean env separation: dev dashboards cannot accidentally override prod ones.
+
+    - Room for RBAC: in Grafana, you can later assign roles/permissions per folder and per environment instance.
+
+From a Git perspective, everything is organized under:
+
+    - infra/k8s/monitoring/grafana/dashboards/<env>/<domain>/*.json
+    - infra/k8s/monitoring/grafana/configmaps/*.yaml

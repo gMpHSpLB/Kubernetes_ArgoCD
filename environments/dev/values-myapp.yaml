@@ -98,5 +98,8 @@ securityContext:
     drop:
       - ALL
 
+serviceMonitor:
+  enabled: true
+
 metrics:
   enabled: true

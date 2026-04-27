@@ -1,0 +1,14 @@
+{
+  "id": null,
+  "uid": "myapp-slo",
+  "title": "MyApp SLO (staging)",
+  "tags": ["myapp", "slo", "staging"],
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "panels": [],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  }
+}

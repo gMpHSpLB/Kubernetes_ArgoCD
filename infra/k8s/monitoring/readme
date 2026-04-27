@@ -35,3 +35,11 @@ Prod:
     - Admin credentials only via secret.
     - Viewers cannot edit; maybe disable login form once SSO is ready.
     - Strict RBAC; possibly separate orgs or folders per team.
+
+ full “infra‑as‑code” loop:
+
+Helm installs kube‑prometheus‑stack (Prometheus, Alertmanager, Grafana).
+
+    - ConfigMaps deliver dashboards.
+
+    - PrometheusRule CRDs deliver base + SLO alerts.
