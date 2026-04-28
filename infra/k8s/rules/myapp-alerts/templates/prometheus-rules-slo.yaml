@@ -24,13 +24,13 @@ spec:
   groups: # list of rule groups.
     - name: {{ .Values.slo.groupName | default "myapp.slo" }} #  just a logical group name to separate SLO alerts from base alerts.
       rules:
-        # Alert: fast burn
+        # Alert: fast burn - metrics should be same as what is defined in metrics.py
         - alert: {{ .Values.slo.fast.name | default "MyAppErrorBudgetBurnFast" }}
           expr: |
             (
-              sum(rate(http_server_requests_seconds_count{job={{ .Values.monitoring.job | quote }},status=~"5.."}[{{ .Values.slo.fast.window | quote }}]))
+              sum(rate(http_requests_total{job={{ .Values.monitoring.job | quote }},status_code=~"5.."}[{{ .Values.slo.fast.window }}]))
               /
-              sum(rate(http_server_requests_seconds_count{job={{ .Values.monitoring.job | quote }}}[{{ .Values.slo.fast.window | quote }}]))
+              sum(rate(http_requests_total{job={{ .Values.monitoring.job | quote }}}[{{ .Values.slo.fast.window }}]))
             ) > ({{ .Values.slo.errorBudgetFraction }} * {{ .Values.slo.fast.burnFactor }})
           for: {{ .Values.slo.fast.for | quote }}
           labels:
@@ -38,13 +38,13 @@ spec:
           annotations:
             summary: {{ .Values.slo.fast.summary | quote }}
             description: {{ .Values.slo.fast.description | quote }}
-        # Alert: slow burn
+        # Alert: slow burn metrics should be same as what is defined in metrics.py
         - alert: {{ .Values.slo.slow.name | default "MyAppErrorBudgetBurnSlow" }}
           expr: |
             (
-              sum(rate(http_server_requests_seconds_count{job={{ .Values.monitoring.job | quote }},status=~"5.."}[{{ .Values.slo.slow.window | quote }}]))
+              sum(rate(http_requests_total{job={{ .Values.monitoring.job | quote }},status_code=~"5.."}[{{ .Values.slo.slow.window }}]))
               /
-              sum(rate(http_server_requests_seconds_count{job={{ .Values.monitoring.job | quote }}}[{{ .Values.slo.slow.window | quote }}]))
+              sum(rate(http_requests_total{job={{ .Values.monitoring.job | quote }}}[{{ .Values.slo.slow.window }}]))
             ) > ({{ .Values.slo.errorBudgetFraction }} * {{ .Values.slo.slow.burnFactor }})
           for: {{ .Values.slo.slow.for | quote }}
           labels:

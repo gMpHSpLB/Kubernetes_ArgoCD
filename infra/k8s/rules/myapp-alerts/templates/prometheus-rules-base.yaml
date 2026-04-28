@@ -166,11 +166,11 @@ spec: # The spec contains the actual alert definitions.
         # 1) High5xxRate
         # This rule says: “If more than 5% of requests are failing with 5xx errors for 5 minutes, alert me.”
         # In simple terms, your app is returning too many server-side failures. This usually means a real backend problem, such as a broken dependency, bad release, database issue, or code bug.
-        - alert: High5xxRate
+        - alert: High5xxRate # metrics should be same as what is defined in metrics.py
         # The PromQL expression that decides when the alert fires.
           expr: |
-            rate(http_server_requests_seconds_count{job={{ .Values.monitoring.job | quote }},status=~"5.."}[{{ .Values.alerts.window5m | quote }}]) /
-            rate(http_server_requests_seconds_count{job={{ .Values.monitoring.job | quote }}}[{{ .Values.alerts.window5m | quote }}]) > {{ .Values.alerts.high5xx.threshold }}
+            sum(rate(http_requests_total{job={{ .Values.monitoring.job | quote }},status_code=~"5.."}[{{ .Values.alerts.window5m }}])) /
+            sum(rate(http_requests_total{job={{ .Values.monitoring.job | quote }}}[{{ .Values.alerts.window5m }}])) > {{ .Values.alerts.high5xx.threshold }}
           for: {{ .Values.alerts.high5xx.for | quote }} # The condition must remain true for 5 minutes before the alert actually fires. This reduces noise from short spikes.
           labels: # Extra metadata attached to the alert.
             severity: {{ .Values.alerts.high5xx.severity | quote }} # Marks this warning-level incident,  critical page etc
@@ -181,10 +181,10 @@ spec: # The spec contains the actual alert definitions.
         # This rule says: “If the 95th percentile request latency stays above 500 ms for 5 minutes, alert me.”
         # In simple terms, most requests are still okay, but the slower ones are getting too slow. 
         # That can mean overloaded servers, slow queries, external API slowness, or insufficient resources.
-        - alert: HighRequestLatency # This alert watches for slow responses.
+        - alert: HighRequestLatency # This alert watches for slow responses. metrics should be same as what is defined in metrics.py
           expr: |
             histogram_quantile({{ .Values.alerts.latency.quantile }},
-              sum(rate(http_server_requests_seconds_bucket{job={{ .Values.monitoring.job | quote }}}[{{ .Values.alerts.window5m | quote }}])) by (le)
+              sum(rate(http_request_duration_seconds_bucket{job={{ .Values.monitoring.job | quote }}}[{{ .Values.alerts.window5m }}])) by (le)
             ) > {{ .Values.alerts.latency.threshold }}
           for: {{ .Values.alerts.latency.for | quote }}
           labels:
@@ -196,7 +196,7 @@ spec: # The spec contains the actual alert definitions.
         # This rule says: “If a container restarts more than 3 times in 10 minutes and keeps doing that for 10 minutes, alert me.”
         # In simple terms, the pod is unstable and may be crash-looping, failing health checks, or being killed because of memory issues.
         - alert: PodRestartingFrequently # This watches for pods that are crashing or restarting too often.
-          expr: increase(kube_pod_container_status_restarts_total{namespace=~{{ .Values.monitoring.restartNamespaces | quote }}}[{{ .Values.alerts.restart.window | quote }}]) > {{ .Values.alerts.restart.threshold }}
+          expr: increase(kube_pod_container_status_restarts_total{namespace=~{{ .Values.monitoring.restartNamespaces | quote }}}[{{ .Values.alerts.restart.window }}]) > {{ .Values.alerts.restart.threshold }}
           for: {{ .Values.alerts.restart.for | quote }}
           labels:
             severity: {{ .Values.alerts.restart.severity | quote }}

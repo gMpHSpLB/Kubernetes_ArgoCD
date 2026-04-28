@@ -542,7 +542,7 @@ deploy-minikube-local: ensure-minikube k8s-namespace-myapp-local install-prometh
 	  -n myapp-local --create-namespace \
 	  -f charts/myapp/values-local.yaml \
 	  --set image.fullName="myapp:mklatest" \
-	  --set serviceMonitor.enabled=false
+	  --set serviceMonitor.enabled=true
 	@echo "Deploying mylearning to Minikube with Helm (with test jobs enabled)..."
 	helm upgrade --install mylearning-mklatest charts/mylearning \
 	  -f charts/mylearning/values.yaml \
@@ -635,7 +635,7 @@ check-minikube-api: #deploy-minikube-local
 	  sleep 5; \
 	  if curl -sf http://localhost:8000/docs > /dev/null; then \
 	    echo "Minikube API is up!"; \
-	    kill $$PF_PID || true; \
+	    #kill $$PF_PID || true; \
 	    exit 0; \
 	  else \
 	    echo "Minikube API not ready yet (attempt $$i)..."; \
