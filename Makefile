@@ -72,6 +72,7 @@ K8S_ALERTS_RELEASE   ?= myapp-alerts
 K8S_ALERTS_NAMESPACE ?= monitoring
 
 # Grafana dashboards
+K8S_GRAFANA_DASHBOARD_DIR ?=  $(K8S_MONITORING_DIR)/grafana/dashboards
 K8S_GRAFANA_DASHBOARD_CM_DIR ?= $(K8S_MONITORING_DIR)/grafana/configmaps
 
 
@@ -938,11 +939,28 @@ k8s-monitoring-prod: helm-add-repos ensure-minikube
 #apply Grafana dashboards per env
 .PHONY: k8s-grafana-dashboards-dev k8s-grafana-dashboards-staging k8s-grafana-dashboards-prod k8s-grafana-dashboards-all
 
+# k8s-grafana-dashboards-dev:
+# 	@echo "Applying Grafana dashboards ConfigMaps for DEV..."
+# 	kubectl apply -n $(K8S_MONITORING_NAMESPACE) \
+# 	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-infra-dev.yaml \
+# 	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-myapp-dev.yaml
+
 k8s-grafana-dashboards-dev:
-	@echo "Applying Grafana dashboards ConfigMaps for DEV..."
-	kubectl apply -n $(K8S_MONITORING_NAMESPACE) \
-	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-infra-dev.yaml \
-	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-myapp-dev.yaml
+	@echo "Generating and applying Grafana dashboards ConfigMaps for DEV..."
+	# Generate myapp dashboards ConfigMap
+	kubectl create configmap grafana-dashboards-myapp-dev \
+	  --from-file=$(K8S_GRAFANA_DASHBOARD_DIR)/dev/myapp/ \
+	  -n $(K8S_MONITORING_NAMESPACE) \
+	  --dry-run=client -o yaml | \
+	  kubectl label --local -f - grafana_dashboard=1 --dry-run=client -o yaml | \
+	  kubectl apply -f -
+	# Generate infra dashboards ConfigMap
+	kubectl create configmap grafana-dashboards-infra-dev \
+	  --from-file=$(K8S_GRAFANA_DASHBOARD_DIR)/dev/infra/ \
+	  -n $(K8S_MONITORING_NAMESPACE) \
+	  --dry-run=client -o yaml | \
+	  kubectl label --local -f - grafana_dashboard=1 --dry-run=client -o yaml | \
+	  kubectl apply -f -
 
 k8s-grafana-dashboards-staging:
 	@echo "Applying Grafana dashboards ConfigMaps for STAGING..."
