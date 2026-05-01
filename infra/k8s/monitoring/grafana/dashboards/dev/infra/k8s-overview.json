@@ -1,387 +1,141 @@
 {
-  "id": null,
-  "uid": "k8s-overview",
-  "title": "Kubernetes Overview (dev)",
-  "tags": ["infra", "kubernetes", "dev"],
-  "timezone": "browser",
-  "schemaVersion": 36,
-  "version": 1,
-  "panels": [],
-  "time": {
-    "from": "now-1h",
-    "to": "now"
-  }
-}
-
-{
-  "annotations": [
-    {
-      "kind": "AnnotationQuery",
-      "spec": {
-        "builtIn": true,
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
-        "query": {
-          "datasource": {
-            "name": "-- Grafana --"
-          },
-          "group": "grafana",
-          "kind": "DataQuery",
-          "spec": {},
-          "version": "v0"
-        }
+        "type": "dashboard"
       }
-    }
-  ],
-  "cursorSync": "Off",
+    ]
+  },
   "description": "per‑node resource usage, pod restarts, etc.",
   "editable": true,
-  "elements": {
-    "panel-1": {
-      "kind": "Panel",
-      "spec": {
-        "data": {
-          "kind": "QueryGroup",
-          "spec": {
-            "queries": [
-              {
-                "kind": "PanelQuery",
-                "spec": {
-                  "hidden": false,
-                  "query": {
-                    "datasource": {
-                      "name": "prometheus"
-                    },
-                    "group": "prometheus",
-                    "kind": "DataQuery",
-                    "spec": {
-                      "editorMode": "code",
-                      "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"\",pod!=\"\"}[5m])) by (node)",
-                      "legendFormat": "__auto",
-                      "range": true
-                    },
-                    "version": "v0"
-                  },
-                  "refId": "A"
-                }
-              }
-            ],
-            "queryOptions": {},
-            "transformations": []
-          }
-        },
-        "description": "",
-        "id": 1,
-        "links": [],
-        "title": "CPU per node",
-        "vizConfig": {
-          "group": "__unconfigured-panel",
-          "kind": "VizConfig",
-          "spec": {
-            "fieldConfig": {
-              "defaults": {},
-              "overrides": []
-            },
-            "options": {}
-          },
-          "version": "13.0.1"
-        }
-      }
-    },
-    "panel-2": {
-      "kind": "Panel",
-      "spec": {
-        "data": {
-          "kind": "QueryGroup",
-          "spec": {
-            "queries": [
-              {
-                "kind": "PanelQuery",
-                "spec": {
-                  "hidden": false,
-                  "query": {
-                    "datasource": {
-                      "name": "prometheus"
-                    },
-                    "group": "prometheus",
-                    "kind": "DataQuery",
-                    "spec": {
-                      "editorMode": "code",
-                      "expr": "sum(container_memory_usage_bytes{container!=\"\",pod!=\"\"}) by (node)",
-                      "legendFormat": "__auto",
-                      "range": true
-                    },
-                    "version": "v0"
-                  },
-                  "refId": "A"
-                }
-              }
-            ],
-            "queryOptions": {},
-            "transformations": []
-          }
-        },
-        "description": "",
-        "id": 2,
-        "links": [],
-        "title": "Memory per node",
-        "vizConfig": {
-          "group": "__unconfigured-panel",
-          "kind": "VizConfig",
-          "spec": {
-            "fieldConfig": {
-              "defaults": {},
-              "overrides": []
-            },
-            "options": {}
-          },
-          "version": "13.0.1"
-        }
-      }
-    },
-    "panel-3": {
-      "kind": "Panel",
-      "spec": {
-        "data": {
-          "kind": "QueryGroup",
-          "spec": {
-            "queries": [
-              {
-                "kind": "PanelQuery",
-                "spec": {
-                  "hidden": false,
-                  "query": {
-                    "datasource": {
-                      "name": "prometheus"
-                    },
-                    "group": "prometheus",
-                    "kind": "DataQuery",
-                    "spec": {
-                      "editorMode": "code",
-                      "expr": "sum(increase(kube_pod_container_status_restarts_total[1h])) by (namespace)",
-                      "legendFormat": "__auto",
-                      "range": true
-                    },
-                    "version": "v0"
-                  },
-                  "refId": "A"
-                }
-              }
-            ],
-            "queryOptions": {},
-            "transformations": []
-          }
-        },
-        "description": "",
-        "id": 3,
-        "links": [],
-        "title": "Pod restarts per namespace",
-        "vizConfig": {
-          "group": "__unconfigured-panel",
-          "kind": "VizConfig",
-          "spec": {
-            "fieldConfig": {
-              "defaults": {},
-              "overrides": []
-            },
-            "options": {}
-          },
-          "version": "13.0.1"
-        }
-      }
-    },
-    "panel-4": {
-      "kind": "Panel",
-      "spec": {
-        "data": {
-          "kind": "QueryGroup",
-          "spec": {
-            "queries": [
-              {
-                "kind": "PanelQuery",
-                "spec": {
-                  "hidden": false,
-                  "query": {
-                    "datasource": {
-                      "name": "prometheus"
-                    },
-                    "group": "prometheus",
-                    "kind": "DataQuery",
-                    "spec": {
-                      "editorMode": "code",
-                      "expr": "count(kube_node_status_condition{condition=\"Ready\",status=\"true\"})",
-                      "legendFormat": "__auto",
-                      "range": true
-                    },
-                    "version": "v0"
-                  },
-                  "refId": "A"
-                }
-              }
-            ],
-            "queryOptions": {},
-            "transformations": []
-          }
-        },
-        "description": "",
-        "id": 4,
-        "links": [],
-        "title": "Ready nodes",
-        "vizConfig": {
-          "group": "__unconfigured-panel",
-          "kind": "VizConfig",
-          "spec": {
-            "fieldConfig": {
-              "defaults": {},
-              "overrides": []
-            },
-            "options": {}
-          },
-          "version": "13.0.1"
-        }
-      }
-    },
-    "panel-5": {
-      "kind": "Panel",
-      "spec": {
-        "data": {
-          "kind": "QueryGroup",
-          "spec": {
-            "queries": [
-              {
-                "kind": "PanelQuery",
-                "spec": {
-                  "hidden": false,
-                  "query": {
-                    "datasource": {
-                      "name": "prometheus"
-                    },
-                    "group": "prometheus",
-                    "kind": "DataQuery",
-                    "spec": {
-                      "editorMode": "code",
-                      "expr": "count(kube_node_status_condition{condition=\"Ready\",status!=\"true\"})",
-                      "legendFormat": "__auto",
-                      "range": true
-                    },
-                    "version": "v0"
-                  },
-                  "refId": "A"
-                }
-              }
-            ],
-            "queryOptions": {},
-            "transformations": []
-          }
-        },
-        "description": "",
-        "id": 5,
-        "links": [],
-        "title": "NotReady nodes",
-        "vizConfig": {
-          "group": "__unconfigured-panel",
-          "kind": "VizConfig",
-          "spec": {
-            "fieldConfig": {
-              "defaults": {},
-              "overrides": []
-            },
-            "options": {}
-          },
-          "version": "13.0.1"
-        }
-      }
-    }
-  },
-  "layout": {
-    "kind": "GridLayout",
-    "spec": {
-      "items": [
-        {
-          "kind": "GridLayoutItem",
-          "spec": {
-            "element": {
-              "kind": "ElementReference",
-              "name": "panel-1"
-            },
-            "height": 8,
-            "width": 12,
-            "x": 0,
-            "y": 0
-          }
-        },
-        {
-          "kind": "GridLayoutItem",
-          "spec": {
-            "element": {
-              "kind": "ElementReference",
-              "name": "panel-2"
-            },
-            "height": 8,
-            "width": 12,
-            "x": 12,
-            "y": 0
-          }
-        },
-        {
-          "kind": "GridLayoutItem",
-          "spec": {
-            "element": {
-              "kind": "ElementReference",
-              "name": "panel-3"
-            },
-            "height": 8,
-            "width": 12,
-            "x": 0,
-            "y": 8
-          }
-        },
-        {
-          "kind": "GridLayoutItem",
-          "spec": {
-            "element": {
-              "kind": "ElementReference",
-              "name": "panel-4"
-            },
-            "height": 8,
-            "width": 12,
-            "x": 12,
-            "y": 8
-          }
-        },
-        {
-          "kind": "GridLayoutItem",
-          "spec": {
-            "element": {
-              "kind": "ElementReference",
-              "name": "panel-5"
-            },
-            "height": 8,
-            "width": 12,
-            "x": 0,
-            "y": 16
-          }
-        }
-      ]
-    }
-  },
-  "links": [],
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
   "liveNow": false,
-  "preferences": {
-    "layout": {
-      "kind": "GridLayout",
-      "spec": {
-        "items": []
-      }
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "annotations": {
+          "clustering": -1,
+          "multiLane": false
+        },
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "13.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(increase(kube_pod_container_status_restarts_total[1h])) by (namespace)",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Pod restarts per namespace",
+      "type": "timeseries"
     }
-  },
+  ],
   "preload": false,
-  "tags": ["infra", "kubernetes", "dev"],
-  "timeSettings": {
-    "autoRefresh": "",
-    "autoRefreshIntervals": [
+  "refresh": "",
+  "schemaVersion": 42,
+  "tags": [
+    "infra",
+    "dev",
+    "kubernetes"
+  ],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
       "5s",
       "10s",
       "30s",
@@ -392,13 +146,11 @@
       "1h",
       "2h",
       "1d"
-    ],
-    "fiscalYearStartMonth": 0,
-    "from": "now-6h",
-    "hideTimepicker": false,
-    "timezone": "browser",
-    "to": "now"
+    ]
   },
-  "title": "Kubernetes Overview (dev)",
-  "variables": []
+  "timezone": "browser",
+  "title": "Kubernetes Overview (dev) test -1",
+  "version": 1,
+  "uid": "KubernetesOverviewDev",
+  "id": 870758186303488
 }

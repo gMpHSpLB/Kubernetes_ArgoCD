@@ -288,6 +288,20 @@ kubectl get pods
 kubectl get svc
 kubectl describe svc mydb-postgres
 
+
+Inspect the pod and events:
+kubectl get pods -n monitoring -o wide
+kubectl describe pod -n monitoring <prometheus-pod-name>
+
+Useful commands
+bash
+kubectl get pods -n monitoring
+kubectl describe pod -n monitoring <pod>
+kubectl get events -n monitoring --sort-by=.lastTimestamp
+kubectl get pvc -n monitoring
+kubectl get nodes
+helm list -n monitoring
+
 Port-forward for service like: myapp-dev-myapp
  
 kubectl port-forward svc/myapp-dev-myapp 8000:8000
@@ -325,3 +339,51 @@ or if that fails:
 
 kubectl get pods -l job-name=mylearning-mklatest-mylearning-smoke
 kubectl logs <pod-name>
+
+To check if the dashboard JSON files are successfully uploaded to Grafana and diagnose any errors, follow these steps:
+
+1. Verify ConfigMap was created successfully
+bash
+# Check if the ConfigMap exists
+kubectl get configmap grafana-dashboards-myapp-dev -n monitoring
+
+# Check the ConfigMap has the correct label
+kubectl get configmap grafana-dashboards-myapp-dev -n monitoring --show-labels
+
+# Verify the dashboard files are in the ConfigMap
+kubectl describe configmap grafana-dashboards-myapp-dev -n monitoring
+2. Check what files are in the source directory
+bash
+# List files being included in the ConfigMap
+ls -la infra/k8s/monitoring/grafana/dashboards/dev/myapp/
+
+# Verify JSON files are valid
+for file in infra/k8s/monitoring/grafana/dashboards/dev/myapp/*.json; do
+  echo "Checking $file"
+  jq empty "$file" 2>&1 || echo "Invalid JSON in $file"
+done
+3. Check if the sidecar picked up the ConfigMap
+bash
+# Get Grafana pod name
+GRAFANA_POD=$(kubectl get pod -n monitoring -l app.kubernetes.io/name=grafana -o jsonpath='{.items[0].metadata.name}')
+
+# Check sidecar logs for your dashboard files
+kubectl logs -n monitoring $GRAFANA_POD -c grafana-sc-dashboard | grep -E "myapp|Writing"
+
+# Verify files were written to /tmp/dashboards/
+kubectl exec -n monitoring $GRAFANA_POD -c grafana -- ls -la /tmp/dashboards/ | grep myapp
+4. Check Grafana provisioning logs for errors
+bash
+# Check for provisioning errors
+kubectl logs -n monitoring $GRAFANA_POD -c grafana | grep -E "provisioning.dashboard|myapp|error|warn"
+
+# Check specifically for your dashboard provisioning
+kubectl logs -n monitoring $GRAFANA_POD -c grafana --tail=200 | grep -A 5 "myapp"
+5. Common error patterns to look for
+bash
+# Check for all error types
+kubectl logs -n monitoring $GRAFANA_POD -c grafana --tail=200 | grep -E "error|failed to save|Cannot change resource manager|v2 format|duplicate"
+6. Verify sidecar configuration
+bash
+# Check sidecar environment variables
+kubectl get pod -n monitoring $GRAFANA_POD -o jsonpath='{.spec.containers[?(@.name=="grafana-sc-dashboard")].env[*]}' | jq

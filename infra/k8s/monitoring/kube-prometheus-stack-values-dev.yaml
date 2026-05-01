@@ -109,6 +109,14 @@ alertmanager:
 grafana:
   adminUser: "admin"
   adminPassword: "admin"     # dev only, Sets the initial Grafana admin username and password.
+  # sidecar:
+  #   dashboards:
+  #     enabled: true
+  #     label: grafana_dashboard
+  #     #labelValue: "1"
+  #     folder: /tmp/dashboards
+  #     provider:
+  #       foldersFromFilesStructure: true
   service:
     # Use case: safer default for dev because Grafana is not 
     # publicly exposed by default.
