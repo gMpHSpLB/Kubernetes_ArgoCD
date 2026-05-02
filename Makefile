@@ -962,17 +962,51 @@ k8s-grafana-dashboards-dev:
 	  kubectl label --local -f - grafana_dashboard=1 --dry-run=client -o yaml | \
 	  kubectl apply -f -
 
+# k8s-grafana-dashboards-staging:
+# 	@echo "Applying Grafana dashboards ConfigMaps for STAGING..."
+# 	kubectl apply -n $(K8S_MONITORING_NAMESPACE) \
+# 	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-infra-staging.yaml \
+# 	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-myapp-staging.yaml
+
 k8s-grafana-dashboards-staging:
-	@echo "Applying Grafana dashboards ConfigMaps for STAGING..."
-	kubectl apply -n $(K8S_MONITORING_NAMESPACE) \
-	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-infra-staging.yaml \
-	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-myapp-staging.yaml
+	@echo "Generating and applying Grafana dashboards ConfigMaps for STAGING..."
+	# Generate myapp dashboards ConfigMap
+	kubectl create configmap grafana-dashboards-myapp-staging \
+	  --from-file=$(K8S_GRAFANA_DASHBOARD_DIR)/staging/myapp/ \
+	  -n $(K8S_MONITORING_NAMESPACE) \
+	  --dry-run=client -o yaml | \
+	  kubectl label --local -f - grafana_dashboard=1 --dry-run=client -o yaml | \
+	  kubectl apply -f -
+	# Generate infra dashboards ConfigMap
+	kubectl create configmap grafana-dashboards-infra-staging \
+	  --from-file=$(K8S_GRAFANA_DASHBOARD_DIR)/staging/infra/ \
+	  -n $(K8S_MONITORING_NAMESPACE) \
+	  --dry-run=client -o yaml | \
+	  kubectl label --local -f - grafana_dashboard=1 --dry-run=client -o yaml | \
+	  kubectl apply -f -	
+
+# k8s-grafana-dashboards-prod:
+# 	@echo "Applying Grafana dashboards ConfigMaps for PROD..."
+# 	kubectl apply -n $(K8S_MONITORING_NAMESPACE) \
+# 	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-infra.yaml \
+# 	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-myapp.yaml
 
 k8s-grafana-dashboards-prod:
-	@echo "Applying Grafana dashboards ConfigMaps for PROD..."
-	kubectl apply -n $(K8S_MONITORING_NAMESPACE) \
-	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-infra.yaml \
-	  -f $(K8S_GRAFANA_DASHBOARD_CM_DIR)/grafana-dashboards-myapp.yaml
+	@echo "Generating and applying Grafana dashboards ConfigMaps for PROD..."
+	# Generate myapp dashboards ConfigMap
+	kubectl create configmap grafana-dashboards-myapp-prod \
+	  --from-file=$(K8S_GRAFANA_DASHBOARD_DIR)/prod/myapp/ \
+	  -n $(K8S_MONITORING_NAMESPACE) \
+	  --dry-run=client -o yaml | \
+	  kubectl label --local -f - grafana_dashboard=1 --dry-run=client -o yaml | \
+	  kubectl apply -f -
+	# Generate infra dashboards ConfigMap
+	kubectl create configmap grafana-dashboards-infra-prod \
+	  --from-file=$(K8S_GRAFANA_DASHBOARD_DIR)/prod/infra/ \
+	  -n $(K8S_MONITORING_NAMESPACE) \
+	  --dry-run=client -o yaml | \
+	  kubectl label --local -f - grafana_dashboard=1 --dry-run=client -o yaml | \
+	  kubectl apply -f -
 
 k8s-grafana-dashboards-all: k8s-grafana-dashboards-dev k8s-grafana-dashboards-staging k8s-grafana-dashboards-prod
 	@echo "Grafana dashboard ConfigMaps applied for dev, staging, and prod."
