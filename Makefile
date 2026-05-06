@@ -54,21 +54,30 @@ K8S_RULES_DIR           ?= infra/k8s/rules
 # ---------- KUBECONFIG / CONTEXTS PER ENV ----------
 # Use the same local Minikube context for all environments for now.
 # When you later add real staging/prod clusters, change only STAGING/PROD values.
-K8S_CONTEXT_DEV     ?= minikube   # Dev app environment on local Minikube
-K8S_CONTEXT_STAGING ?= minikube   # Staging app environment on local Minikube
-K8S_CONTEXT_PROD    ?= minikube   # Prod app environment on local Minikube
+# Dev app environment on local Minikube
+K8S_CONTEXT_DEV     ?= minikube
+# Staging app environment on local Minikube
+K8S_CONTEXT_STAGING ?= minikube
+# Prod app environment on local Minikube
+K8S_CONTEXT_PROD    ?= minikube
 
 # ---------- APP NAMESPACES PER ENV ----------
 # These match infra/k8s/namespaces/myapp-namespaces.yaml.
-K8S_APP_NAMESPACE_DEV     ?= myapp-dev      # Namespace for dev myapp workloads
-K8S_APP_NAMESPACE_STAGING ?= myapp-staging  # Namespace for staging myapp workloads
-K8S_APP_NAMESPACE_PROD    ?= myapp-prod     # Namespace for prod myapp workloads
+# Namespace for dev myapp workloads
+K8S_APP_NAMESPACE_DEV     ?= myapp-dev
+# Namespace for staging myapp workloads
+K8S_APP_NAMESPACE_STAGING ?= myapp-staging
+# Namespace for prod myapp workloads
+K8S_APP_NAMESPACE_PROD    ?= myapp-prod
 
 # ---------- HELM RELEASE NAMES PER ENV ----------
 # Keep releases separate so dev/staging/prod can be managed independently.
-K8S_MYAPP_RELEASE_DEV     ?= myapp-dev      # Helm release name for dev myapp
-K8S_MYAPP_RELEASE_STAGING ?= myapp-staging  # Helm release name for staging myapp
-K8S_MYAPP_RELEASE_PROD    ?= myapp-prod     # Helm release name for prod myapp
+# Helm release name for dev myapp
+K8S_MYAPP_RELEASE_DEV     ?= myapp-dev
+# Helm release name for staging myapp
+K8S_MYAPP_RELEASE_STAGING ?= myapp-staging
+# Helm release name for prod myapp
+K8S_MYAPP_RELEASE_PROD    ?= myapp-prod
 
 # Monitoring / logging namespaces
 K8S_MONITORING_NAMESPACE ?= monitoring
