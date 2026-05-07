@@ -116,6 +116,8 @@ K8S_ALERTS_NAMESPACE ?= monitoring
 K8S_GRAFANA_DASHBOARD_DIR ?=  $(K8S_MONITORING_DIR)/grafana/dashboards
 K8S_GRAFANA_DASHBOARD_CM_DIR ?= $(K8S_MONITORING_DIR)/grafana/configmaps
 
+# AWS 
+REQUIRE_AWS_LOGGING ?= 0
 
 ###############Code Quality ###############################
 .PHONY: lint format type security quality coverage smoke-test test test-docker clean-coverage clean
@@ -965,7 +967,7 @@ define k8s_observability_check
 	@kubectl get pods -n "$(3)" -o wide
 	@kubectl get svc -n "$(3)"
 	@kubectl get endpoints -n "$(3)" || true
-	@kubectl top pods -n "$(3)" || true
+	@kubectl top pods -n "$(3)" || echo "WARNING: Metrics API not available; skipping resource usage for namespace $(3)."
 	@POD=""; \
 	IMAGE_FILTER="$(5)"; \
 	if [ -n "$$IMAGE_FILTER" ]; then \
@@ -1263,9 +1265,24 @@ k8s-logging-staging-secrets:
 	  --from-literal=AWS_ACCESS_KEY_ID="$(AWS_ACCESS_KEY_ID_STAGING)" \
 	  --from-literal=AWS_SECRET_ACCESS_KEY="$(AWS_SECRET_ACCESS_KEY_STAGING)"
 
+# Add a “soft” wrapper for local smoke
+# 	For local staging smoke, you want:
+#		- If AWS env vars are set → run the strict target and get 
+#         full S3‑backed Loki.
+# 		- If they are not set → skip S3 secret setup but still proceed 
+#         with the rest of the smoke.
+.PHONY: k8s-logging-staging-secrets-soft
+k8s-logging-staging-secrets-soft:
+	@if [ -z "$(AWS_ACCESS_KEY_ID_STAGING)" ] || [ -z "$(AWS_SECRET_ACCESS_KEY_STAGING)" ]; then \
+		echo "WARNING: AWS_ACCESS_KEY_ID_STAGING / AWS_SECRET_ACCESS_KEY_STAGING not set;"; \
+		echo "skipping k8s-logging-staging-secrets (Loki S3 creds) in this environment."; \
+	else \
+		$(MAKE) k8s-logging-staging-secrets; \
+	fi
+
 # export AWS_ACCESS_KEY_ID_STAGING=staging-key
 # export AWS_SECRET_ACCESS_KEY_STAGING=staging-secret
-k8s-logging-staging: helm-add-repos ensure-minikube k8s-logging-staging-secrets
+k8s-logging-staging: helm-add-repos ensure-minikube k8s-logging-staging-secrets-soft
 	@echo "Installing/Upgrading Loki stack (staging) in namespace $(K8S_LOGGING_NAMESPACE)..."
 	helm upgrade --install $(K8S_LOKI_RELEASE)-staging grafana/loki-stack \
 	  -n $(K8S_LOGGING_NAMESPACE) --create-namespace \
@@ -1283,12 +1300,19 @@ k8s-logging-prod-secrets:
 	  --from-literal=AWS_ACCESS_KEY_ID="$(AWS_ACCESS_KEY_ID)" \
 	  --from-literal=AWS_SECRET_ACCESS_KEY="$(AWS_SECRET_ACCESS_KEY)"
 
+.PHONY: k8s-logging-prod-secrets-soft
+k8s-logging-prod-secrets-soft:
+	@if [ -z "$(AWS_ACCESS_KEY_ID_PROD)" ] || [ -z "$(AWS_SECRET_ACCESS_KEY_PROD)" ]; then \
+		echo "WARNING: AWS_ACCESS_KEY_ID_PROD / AWS_SECRET_ACCESS_KEY_PROD not set; skipping k8s-logging-prod-secrets."; \
+	else \
+		$(MAKE) k8s-logging-prod-secrets; \
+	fi
 # export key values before calling make k8s-logging-prod
 # export AWS_ACCESS_KEY_ID=xxxx
 # export AWS_SECRET_ACCESS_KEY=yyyy
 # # Deploy prod Loki (S3-backed) into the current cluster
 # make k8s-logging-prod
-k8s-logging-prod: helm-add-repos ensure-minikube k8s-logging-prod-secrets
+k8s-logging-prod: helm-add-repos ensure-minikube k8s-logging-prod-secrets-soft
 	@echo "Installing/Upgrading Loki stack (prod) in namespace $(K8S_LOGGING_NAMESPACE)..."
 	helm upgrade --install $(K8S_LOKI_RELEASE)-prod grafana/loki-stack \
 	  -n $(K8S_LOGGING_NAMESPACE) --create-namespace \
@@ -1556,6 +1580,45 @@ k8s-smoke-staging-local: ## Full STAGING smoke (local) – build image + secret 
 	$(MAKE) k8s-smoke-staging
 	@echo "End-to-end STAGING smoke (app deploy + observability + HTTP) completed."
 
+k8s-smoke-prod-local: ## Full PROD smoke (local) – build image + secret + deploy + observability + HTTP
+	@echo "Checking minikube status..."
+	$(MAKE) ensure-minikube
+
+	@echo "Creating myapp-secret for prod..."
+	$(MAKE) create-secrets \
+		K8S_NAMESPACE=myapp-prod \
+		K8_DB_HOST=localhost \
+		K8_DB_PORT=5432 \
+		K8_DB_NAME=mydb \
+		K8_DB_USER=myuser \
+		K8_DB_PASSWORD=mypassword \
+		K8_UPTRACE_TOKEN=$(UPTRACE_TOKEN) \
+		K8_UPTRACE_DSN=$(UPTRACE_DSN)
+
+	@echo "Resolving image for local PROD..."
+	@if [ -n "$$MYAPP_IMAGE" ]; then \
+		IMAGE="$$MYAPP_IMAGE"; \
+		echo "Using provided MYAPP_IMAGE=$$IMAGE"; \
+	else \
+		echo "MYAPP_IMAGE not set, building and using local prod image $(LOCAL_MYAPP_IMAGE_PROD)"; \
+		$(MAKE) build-myapp-prod-local; \
+		IMAGE="$(LOCAL_MYAPP_IMAGE_PROD)"; \
+	fi; \
+	echo "Deploying myapp to myapp-prod namespace with image $$IMAGE..."; \
+	$(MAKE) k8-deploy-myapp \
+		CHART_NAME="myapp-prod" \
+		K8S_NAMESPACE="myapp-prod" \
+		ENV_VALUES="environments/prod/values-myapp.yaml" \
+		MYAPP_IMAGE="$$IMAGE"
+
+	@echo "Cleaning up old myapp-prod pods not using $(LOCAL_MYAPP_IMAGE_PROD)..."
+	@kubectl -n myapp-prod get pods -l app.kubernetes.io/name=myapp -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.containers[0].image}{"\n"}{end}' \
+	 | awk '$$2 != "$(LOCAL_MYAPP_IMAGE_PROD)" {print $$1}' \
+	 | xargs -r kubectl -n myapp-prod delete pod
+
+	$(MAKE) k8s-smoke-prod
+	@echo "End-to-end PROD smoke (app deploy + observability + HTTP) completed."
+
 .PHONY: k8s-smoke-dev
 # CI/CD jobs: create secret + deploy app (as you have).
 # k8s-smoke-dev: assume app is deployed, only do observability 
@@ -1570,6 +1633,7 @@ k8s-smoke-dev: ## Observability smoke for DEV (assumes dev app already deployed)
 
 k8s-smoke-staging: ## Observability smoke for STAGING (assumes staging app already deployed)
 	@echo "Running STAGING observability smoke (stack + app checks)..."
+	$(MAKE) k8s-logging-staging-secrets-soft
 	$(MAKE) k8s-observability-staging         # namespaces + monitoring + logging + rules + dashboards + netpol
 	$(MAKE) k8s-observability-infra-check # Prom/Grafana/Loki in monitoring/logging
 	$(MAKE) k8s-observability-check-staging   # app-level checks in myapp-staging
@@ -1578,6 +1642,7 @@ k8s-smoke-staging: ## Observability smoke for STAGING (assumes staging app alrea
 
 k8s-smoke-prod: ## Observability smoke for PROD (assumes prod app already deployed)
 	@echo "Running PROD observability smoke (stack + app checks)..."
+	$(MAKE) k8s-logging-prod-secrets-soft
 	$(MAKE) k8s-observability-prod         # namespaces + monitoring + logging + rules + dashboards + netpol
 	$(MAKE) k8s-observability-infra-check # Prom/Grafana/Loki in monitoring/logging
 	$(MAKE) k8s-observability-check-prod   # app-level checks in myapp-prod
@@ -1644,11 +1709,12 @@ clean-local-staging-images: ## Remove local staging images to free space
 	@echo "Stopping and removing containers using $(LOCAL_MYAPP_IMAGE_STAGING) (if any)..."
 	@docker ps -a --filter "ancestor=$(LOCAL_MYAPP_IMAGE_STAGING)" -q | xargs -r docker rm -f	
 	@echo "Removing image $(LOCAL_MYAPP_IMAGE_STAGING) (if present)..."	
+	@docker image rm $(LOCAL_MYAPP_IMAGE_STAGING) || true
 	@echo "Pruning dangling images..."	
 	@docker image prune -f
 
 .PHONY: clean-local-prod-images
-clean-local-prod-images: ## Remove local dev containers/images to free space
+clean-local-prod-images: ## Remove local prod containers/images to free space
 	@echo "Stopping and removing containers using $(LOCAL_MYAPP_IMAGE_PROD) (if any)..."
 	@docker ps -a --filter "ancestor=$(LOCAL_MYAPP_IMAGE_PROD)" -q | xargs -r docker rm -f
 	@echo "Removing image $(LOCAL_MYAPP_IMAGE_PROD) (if present)..."
