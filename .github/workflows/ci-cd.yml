@@ -240,7 +240,7 @@ jobs:
            
       - name: k8 Deploy and test
         run: |
-          make k8s-test-db 
+          make k8s-test-db
 
       - name: Install kubectl and helm
         uses: azure/setup-kubectl@v4
@@ -378,6 +378,7 @@ jobs:
       - name: K8 Create/Update myapp-secret (dev)
         run: |
           make create-secrets \
+            K8S_NAMESPACE=myapp-dev \
             K8_DB_HOST=${{ secrets.K8_DEV_DB_HOST }} \
             K8_DB_PORT=${{ secrets.K8_DEV_DB_PORT }} \
             K8_DB_NAME=${{ secrets.K8_DEV_DB_NAME }} \
@@ -419,6 +420,8 @@ jobs:
           make k8s-grafana-dashboards-diff-dev
 
       - name: K8s dev smoke (deploy + observability)
+        env:
+          EXPECTED_IMAGE_DEV: ${{ needs.ci.outputs.image_myapp_dev }}      
         run: |
           make k8s-smoke-dev
           make k8s-observability-infra-check   # infra shared, but invoked here too
@@ -509,6 +512,7 @@ jobs:
       - name: K8 Create/Update myapp-secret (staging)
         run: |
           make create-secrets \
+            K8S_NAMESPACE=myapp-staging \
             K8_DB_HOST=${{ secrets.K8_STAGING_DB_HOST }} \
             K8_DB_PORT=${{ secrets.K8_STAGING_DB_PORT }} \
             K8_DB_NAME=${{ secrets.K8_STAGING_DB_NAME }} \
@@ -550,6 +554,8 @@ jobs:
           make k8s-grafana-dashboards-diff-staging
 
       - name: K8s staging smoke (deploy + observability)
+        env:
+          EXPECTED_IMAGE_STAGING: ${{ needs.ci.outputs.image_myapp_staging }}
         run: |
           make k8s-smoke-staging
           make k8s-observability-infra-check   # infra shared, but invoked here too
@@ -623,6 +629,7 @@ jobs:
       - name: K8 Create/Update myapp-secret (prod)
         run: |
           make create-secrets \
+            K8S_NAMESPACE=myapp-prod \
             K8_DB_HOST=${{ secrets.K8_PROD_DB_HOST }} \
             K8_DB_PORT=${{ secrets.K8_PROD_DB_PORT }} \
             K8_DB_NAME=${{ secrets.K8_PROD_DB_NAME }} \
@@ -675,6 +682,7 @@ jobs:
 
       - name: K8s prod smoke (deploy + observability)
         env:
+          EXPECTED_IMAGE_PROD: ${{ needs.ci.outputs.image_myapp_prod }}        
           AWSACCESSKEYID: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
           AWSSECRETACCESSKEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
         run: |

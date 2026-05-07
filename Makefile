@@ -61,6 +61,12 @@ K8S_CONTEXT_STAGING ?= minikube
 # Prod app environment on local Minikube
 K8S_CONTEXT_PROD    ?= minikube
 
+# ---------- Docker Image Name For local test for dev/staging/prod----------------------#
+# Local dev image name (used when no CI image is provided)
+LOCAL_MYAPP_IMAGE_DEV ?= myapp:dev-local
+LOCAL_MYAPP_IMAGE_STAGING ?= myapp:staging-local
+LOCAL_MYAPP_IMAGE_PROD ?= myapp:prod-local
+
 # ---------- APP NAMESPACES PER ENV ----------
 # These match infra/k8s/namespaces/myapp-namespaces.yaml.
 # Namespace for dev myapp workloads
@@ -73,11 +79,17 @@ K8S_APP_NAMESPACE_PROD    ?= myapp-prod
 # ---------- HELM RELEASE NAMES PER ENV ----------
 # Keep releases separate so dev/staging/prod can be managed independently.
 # Helm release name for dev myapp
-K8S_MYAPP_RELEASE_DEV     ?= myapp-dev
+K8S_MYAPP_RELEASE_DEV     ?= myapp-dev-myapp# Release name is derived; Helm release= CHART_NAME(myapp-dev) + chart myapp
 # Helm release name for staging myapp
-K8S_MYAPP_RELEASE_STAGING ?= myapp-staging
+K8S_MYAPP_RELEASE_STAGING ?= myapp-staging-myapp# Release name is derived; Helm release= CHART_NAME(myapp-staging) + chart myapp
 # Helm release name for prod myapp
-K8S_MYAPP_RELEASE_PROD    ?= myapp-prod
+K8S_MYAPP_RELEASE_PROD    ?= myapp-prod-myapp# Release name is derived; Helm release= CHART_NAME(myapp-prod) + chart myapp
+
+# --------------- Deployment name ----------------------------#
+K8S_MYAPP_DEPLOY_DEV 		?= myapp-dev-myapp
+K8S_MYAPP_DEPLOY_STAGING 	?= myapp-staging-myapp
+K8S_MYAPP_DEPLOY_PROD    	?= myapp-prod-myapp
+
 
 # Monitoring / logging namespaces
 K8S_MONITORING_NAMESPACE ?= monitoring
@@ -460,8 +472,8 @@ check-metrics:
 create-secrets:
 	@echo "Creating/updating myapp-secret ..."
 	# Try to create; if it exists, delete and recreate (simple dev behavior)
-	kubectl delete secret myapp-secret --ignore-not-found >/dev/null 2>&1 || true
-	kubectl create secret generic myapp-secret \
+	kubectl -n $(K8S_NAMESPACE) delete secret myapp-secret --ignore-not-found >/dev/null 2>&1 || true
+	kubectl -n $(K8S_NAMESPACE) create secret generic myapp-secret \
 	  --from-literal=DB_HOST=$(K8_DB_HOST) \
 	  --from-literal=DB_PORT=$(K8_DB_PORT) \
 	  --from-literal=DB_NAME=$(K8_DB_NAME) \
@@ -816,7 +828,7 @@ k8-deploy-myapp-dev:
 	CHART_NAME=myapp-dev \
 	K8S_NAMESPACE=$(K8S_APP_NAMESPACE_DEV) \
 	ENV_VALUES=$(K8S_ENV_DIR)/dev/values-myapp.yaml \
-	MYAPP_IMAGE=$(MYAPP_IMAGE_DEV) \
+	MYAPP_IMAGE=$(LOCAL_MYAPP_IMAGE_DEV) \
 	$(MAKE) k8-deploy-myapp
 
 k8-deploy-myapp-staging:
@@ -824,7 +836,7 @@ k8-deploy-myapp-staging:
 	CHART_NAME=myapp-staging \
 	K8S_NAMESPACE=$(K8S_APP_NAMESPACE_STAGGING) \
 	ENV_VALUES=$(K8S_ENV_DIR)/stagging/values-myapp.yaml \
-	MYAPP_IMAGE=$(MYAPP_IMAGE_STAGING) \
+	MYAPP_IMAGE=$(LOCAL_MYAPP_IMAGE_STAGING) \
 	$(MAKE) k8-deploy-myapp
 
 k8-deploy-myapp-prod:
@@ -832,7 +844,7 @@ k8-deploy-myapp-prod:
 	CHART_NAME=myapp-prod \
 	K8S_NAMESPACE=$(K8S_APP_NAMESPACE_PROD) \
 	ENV_VALUES=$(K8S_ENV_DIR)/prod/values-myapp.yaml \
-	MYAPP_IMAGE=$(MYAPP_IMAGE_PROD) \
+	MYAPP_IMAGE=$(LOCAL_MYAPP_IMAGE_PROD) \
 	$(MAKE) k8-deploy-myapp
 
 # mylearning app
@@ -939,15 +951,66 @@ endef
 
 # Generic observability health check for one environment.
 # This checks pods, services, endpoints, metrics, and recent logs.
+# Let each env-specific k8s-observability-check-* decide what image it cares about (dev-local vs ghcr.io tag vs prod tag).
+#
+#Assuming:
+#
+# $(1) = label (DEV/STAGING/PROD)
+# $(3) = namespace
+# $(4) = deployment name (if you still use it elsewhere)
+# We’ll add $(5) = expected image (optional; can be empty)
 define k8s_observability_check
 	@echo "=== Observability check for $(1) ==="
-	@kubectl --context "$(2)" get pods -n "$(3)" -o wide
-	@kubectl --context "$(2)" get svc -n "$(3)"
-	@kubectl --context "$(2)" get endpoints -n "$(3)" || true
-	@kubectl --context "$(2)" top pods -n "$(3)" || true
-	@kubectl --context "$(2)" logs -n "$(3)" deploy/"$(4)" --tail=50 || true
+	@echo "Namespace: $(3)"
+	@kubectl get pods -n "$(3)" -o wide
+	@kubectl get svc -n "$(3)"
+	@kubectl get endpoints -n "$(3)" || true
+	@kubectl top pods -n "$(3)" || true
+	@POD=""; \
+	IMAGE_FILTER="$(5)"; \
+	if [ -n "$$IMAGE_FILTER" ]; then \
+		echo "Looking for pod with image $$IMAGE_FILTER..."; \
+		POD=$$(kubectl get pods -n "$(3)" -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.containers[0].image}{"\n"}{end}' \
+			| awk '$$2 == "'$$IMAGE_FILTER'" {print $$1; exit}'); \
+	fi; \
+	if [ -z "$$POD" ]; then \
+		echo "No matching image or no filter; falling back to first pod in namespace $(3)"; \
+		POD=$$(kubectl get pods -n "$(3)" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo ""); \
+	fi; \
+	if [ -n "$$POD" ]; then \
+		echo "Found pod $$POD, showing logs..."; \
+		kubectl logs -n "$(3)" $$POD --tail=50 || true; \
+	else \
+		echo "No pod found in namespace $(3)"; \
+	fi
 endef
 
+# An HTTP smoke helper
+# 	Use kubectl port-forward from your machine to the dev Service.
+# 	curl /healthz and /readyz locally.
+# 	Fail the Make target if these return non‑200.
+# port‑forwards the Service to the same local port, waits a bit
+# curl -sf will error out if non‑200, causing the Make step to fail.
+define k8s_http_smoke_check
+	@echo "=== HTTP smoke check for $(1) ==="
+	@NAMESPACE="$(2)"; \
+	SVC="$(3)"; \
+	PORT="$(4)"; \
+	echo "Port-forwarding service/$$SVC in namespace $$NAMESPACE to localhost:$$PORT..."; \
+	kubectl -n "$$NAMESPACE" port-forward "service/$$SVC" $$PORT:$$PORT > /tmp/k8s-smoke-$$SVC.log 2>&1 & \
+	PF_PID=$$!; \
+	sleep 3; \
+	set -e; \
+	echo "GET http://localhost:$$PORT/healthz"; \
+	curl -sf "http://localhost:$$PORT/healthz" > /dev/null; \
+	echo "GET http://localhost:$$PORT/readyz"; \
+	curl -sf "http://localhost:$$PORT/readyz" > /dev/null; \
+	echo "GET http://localhost:$$PORT/metrics"; \
+	curl -sf "http://localhost:$$PORT/metrics" > /dev/null; \
+	echo "HTTP smoke checks passed for $$SVC on port $$PORT"; \
+	kill $$PF_PID || true; \
+	wait $$PF_PID 2>/dev/null || true
+endef
 
 # A Helm-based installation target for deploying the kube-prometheus-stack 
 # chart into a Kubernetes cluster, usually for a development or local 
@@ -1247,27 +1310,46 @@ k8s-logging-all: k8s-logging-dev k8s-logging-staging k8s-logging-prod
 # Add env-specific deploy/observability targets
 # verify workload readiness and inspect runtime signals in each namespace.
 # DEV: run checks against the dev namespace in Minikube.
+# Dev: prefer the dev-local image when running k8s-smoke-dev locally.
+# In CI, you can override EXPECTED_IMAGE_DEV via environment if you want.
+EXPECTED_IMAGE_DEV ?= $(LOCAL_MYAPP_IMAGE_DEV)
 k8s-observability-check-dev:
 	$(call check-k8s-context,$(K8S_CONTEXT_DEV))
 	$(call check-k8s-namespace,$(K8S_APP_NAMESPACE_DEV))
-	$(call k8s_observability_check,DEV,$(K8S_CONTEXT_DEV),$(K8S_APP_NAMESPACE_DEV),$(K8S_MYAPP_RELEASE_DEV))
+	$(call k8s_observability_check,DEV,$(K8S_CONTEXT_DEV),$(K8S_APP_NAMESPACE_DEV),$(K8S_MYAPP_DEPLOY_DEV),$(EXPECTED_IMAGE_DEV))
 
 # STAGING: run checks against the staging namespace in Minikube for now.
+# Staging: usually use the staging tag from registry; you can override EXPECTED_IMAGE_STAGING in CI.
+EXPECTED_IMAGE_STAGING ?= $(LOCAL_MYAPP_IMAGE_STAGING)
 k8s-observability-check-staging:
 	$(call check-k8s-context,$(K8S_CONTEXT_STAGING))
 	$(call check-k8s-namespace,$(K8S_APP_NAMESPACE_STAGING))
-	$(call k8s_observability_check,STAGING,$(K8S_CONTEXT_STAGING),$(K8S_APP_NAMESPACE_STAGING),$(K8S_MYAPP_RELEASE_STAGING))
+	$(call k8s_observability_check,STAGING,$(K8S_CONTEXT_STAGING),$(K8S_APP_NAMESPACE_STAGING),$(K8S_MYAPP_DEPLOY_STAGING),$(EXPECTED_IMAGE_STAGING))
 
 # PROD: run checks against the prod namespace in Minikube for now.
+# Prod: same pattern.
+EXPECTED_IMAGE_PROD ?= $(LOCAL_MYAPP_IMAGE_PROD)
 k8s-observability-check-prod:
 	$(call check-k8s-context,$(K8S_CONTEXT_PROD))
 	$(call check-k8s-namespace,$(K8S_APP_NAMESPACE_PROD))
-	$(call k8s_observability_check,PROD,$(K8S_CONTEXT_PROD),$(K8S_APP_NAMESPACE_PROD),$(K8S_MYAPP_RELEASE_PROD))
+	$(call k8s_observability_check,PROD,$(K8S_CONTEXT_PROD),$(K8S_APP_NAMESPACE_PROD),$(K8S_MYAPP_DEPLOY_PROD),$(EXPECTED_IMAGE_PROD))
+
+.PHONY: k8s-http-smoke-dev
+k8s-http-smoke-dev: ## HTTP-level smoke for myapp-dev via Service
+	$(call k8s_http_smoke_check,DEV,$(K8S_APP_NAMESPACE_DEV),$(K8S_MYAPP_DEPLOY_DEV),8000)
+
+.PHONY: k8s-http-smoke-staging
+k8s-http-smoke-staging: ## HTTP-level smoke for myapp-staging via Service
+	$(call k8s_http_smoke_check,STAGING,$(K8S_APP_NAMESPACE_STAGING),$(K8S_MYAPP_DEPLOY_STAGING),8000)
+
+.PHONY: k8s-http-smoke-prod
+k8s-http-smoke-prod: ## HTTP-level smoke for myapp-prod via Service
+	$(call k8s_http_smoke_check,PROD,$(K8S_APP_NAMESPACE_PROD),$(K8S_MYAPP_DEPLOY_PROD),8000)
 
 # ---------- APP OBSERVABILITY CHECKS (ALL ENVIRONMENTS) ----------
 # Add an aggregate target
-k8s-observability-check-all: k8s-observability-check-dev k8s-observability-check-staging k8s-observability-check-prod
-	@echo "Observability checks completed for dev, staging, and prod."
+k8s-observability-check-all: k8s-observability-check-dev k8s-http-smoke-dev k8s-observability-check-staging k8s-http-smoke-staging k8s-observability-check-prod k8s-http-smoke-prod
+	@echo "Observability + HTTP checks completed for dev, staging, and prod."
 
 
 # ---------- INFRA OBSERVABILITY CHECKS (Prometheus / Grafana / Loki) ----------
@@ -1345,6 +1427,31 @@ k8s-observability-prod: k8s-monitoring-prod k8s-logging-prod k8s-alerts-prod k8s
 k8s-observability-all: k8s-observability-dev k8s-observability-staging k8s-observability-prod
 	@echo "K8s observability stack deployed for dev, staging, and prod."
 
+.PHONY: build-myapp-dev-local build-myapp-satging-local build-myapp-prod-local 
+build-myapp-dev-local: ## Build local dev image for myapp (used by k8s-smoke-dev)
+	@echo "Building local dev image $(LOCAL_MYAPP_IMAGE_DEV)..."
+	@echo "Using Minikube Docker daemon..."
+	eval "$$(minikube docker-env)" && \
+	docker build -t $(LOCAL_MYAPP_IMAGE_DEV) -f myapp/Dockerfile . && \
+	eval "$$(minikube docker-env -u)"
+	@echo "Local dev image built: $(LOCAL_MYAPP_IMAGE_DEV)"
+
+build-myapp-staging-local: ## Build local staging image for myapp (used by k8s-smoke-staging)
+	@echo "Building local staging image $(LOCAL_MYAPP_IMAGE_STAGING)..."
+	@echo "Using Minikube Docker daemon..."
+	eval "$$(minikube docker-env)" && \
+	docker build -t $(LOCAL_MYAPP_IMAGE_STAGING) -f myapp/Dockerfile . && \
+	eval "$$(minikube docker-env -u)"
+	@echo "Local staging image built: $(LOCAL_MYAPP_IMAGE_STAGING)"
+
+build-myapp-prod-local: ## Build local dev image for myapp (used by k8s-smoke-prod)
+	@echo "Building local prod image $(LOCAL_MYAPP_IMAGE_PROD)..."
+	@echo "Using Minikube Docker daemon..."
+	eval "$$(minikube docker-env)" && \
+	docker build -t $(LOCAL_MYAPP_IMAGE_PROD) -f myapp/Dockerfile . && \
+	eval "$$(minikube docker-env -u)"
+	@echo "Local prod image built: $(LOCAL_MYAPP_IMAGE_PROD)"
+
 
 # ---------- END-TO-END APP + OBSERVABILITY SMOKE PER ENV ----------
 # Dev: deploy myapp to myapp-dev and then run observability checks.
@@ -1355,16 +1462,135 @@ k8s-observability-all: k8s-observability-dev k8s-observability-staging k8s-obser
 #						(monitoring, logging, dashboards, alerts, netpol) for that env.
 # 	k8s-observability-check-* → run runtime checks 
 #						(pods, services, metrics, logs) in that env.
-k8s-smoke-dev: ensure-minikube k8-deploy-myapp-dev k8s-observability-dev k8s-observability-check-dev ## Deploy + observability smoke for DEV
+
+
+# k8s-smoke-dev: ensure-minikube k8-deploy-myapp-dev k8s-observability-dev k8s-observability-check-dev ## Deploy + observability smoke for DEV
+# 	@echo "End-to-end DEV smoke (app deploy + observability) completed."
+
+# Key points:
+#
+# First local run: you just type make k8s-smoke-dev-local.
+# It will build myapp:dev-local then deploy it and run 
+# observability checks.
+#
+# Subsequent local runs: it will reuse the same local image; 
+# no rebuild unless you change the target to always build or 
+# add --pull in the Dockerfile step.
+
+# CI / promotion use: in GitHub Actions you already have MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_dev }}; when you call make k8s-smoke-dev there, it will skip the local build and use the CI image.
+k8s-smoke-dev-local: ## Full DEV smoke (local) – build image + secret + deploy + observability
+	@echo "Checking minikube status..."
+	$(MAKE) ensure-minikube
+
+	@echo "Creating myapp-secret for dev..."
+	$(MAKE) create-secrets \
+		K8S_NAMESPACE=myapp-dev \
+		K8_DB_HOST=localhost \
+		K8_DB_PORT=5432 \
+		K8_DB_NAME=mydb \
+		K8_DB_USER=myuser \
+		K8_DB_PASSWORD=mypassword \
+		K8_UPTRACE_TOKEN=$(UPTRACE_TOKEN) \
+		K8_UPTRACE_DSN=$(UPTRACE_DSN)
+
+	@echo "Resolving image for local DEV..."
+	@if [ -n "$$MYAPP_IMAGE" ]; then \
+		IMAGE="$$MYAPP_IMAGE"; \
+		echo "Using provided MYAPP_IMAGE=$$IMAGE"; \
+	else \
+		echo "MYAPP_IMAGE not set, building and using local dev image $(LOCAL_MYAPP_IMAGE_DEV)"; \
+		$(MAKE) build-myapp-dev-local; \
+		IMAGE="$(LOCAL_MYAPP_IMAGE_DEV)"; \
+	fi; \
+	echo "Deploying myapp to myapp-dev namespace with image $$IMAGE..."; \
+	$(MAKE) k8-deploy-myapp \
+		CHART_NAME="myapp-dev" \
+		K8S_NAMESPACE="myapp-dev" \
+		ENV_VALUES="environments/dev/values-myapp.yaml" \
+		MYAPP_IMAGE="$$IMAGE"
+
+	@echo "Cleaning up old myapp-dev pods not using $(LOCAL_MYAPP_IMAGE_DEV)..."
+	@kubectl -n myapp-dev get pods -l app.kubernetes.io/name=myapp -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.containers[0].image}{"\n"}{end}' \
+	 | awk '$$2 != "$(LOCAL_MYAPP_IMAGE_DEV)" {print $$1}' \
+	 | xargs -r kubectl -n myapp-dev delete pod
+
+	$(MAKE) k8s-smoke-dev
 	@echo "End-to-end DEV smoke (app deploy + observability) completed."
 
-# Staging: deploy myapp to myapp-staging and then run observability checks.
-k8s-smoke-staging: ensure-minikube k8-deploy-myapp-staging k8s-observability-staging k8s-observability-check-staging ## Deploy + observability smoke for STAGING
-	@echo "End-to-end STAGING smoke (app deploy + observability) completed."
+k8s-smoke-staging-local: ## Full STAGING smoke (local) – build image + secret + deploy + observability + HTTP
+	@echo "Checking minikube status..."
+	$(MAKE) ensure-minikube
 
-# Prod: deploy myapp to myapp-prod and then run observability checks.
-k8s-smoke-prod: ensure-minikube k8-deploy-myapp-prod k8s-observability-prod k8s-observability-check-prod ## Deploy + observability smoke for PROD
-	@echo "End-to-end PROD smoke (app deploy + observability) completed."
+	@echo "Creating myapp-secret for staging..."
+	$(MAKE) create-secrets \
+		K8S_NAMESPACE=myapp-staging \
+		K8_DB_HOST=localhost \
+		K8_DB_PORT=5432 \
+		K8_DB_NAME=mydb \
+		K8_DB_USER=myuser \
+		K8_DB_PASSWORD=mypassword \
+		K8_UPTRACE_TOKEN=$(UPTRACE_TOKEN) \
+		K8_UPTRACE_DSN=$(UPTRACE_DSN)
+
+	@echo "Resolving image for local STAGING..."
+	@if [ -n "$$MYAPP_IMAGE" ]; then \
+		IMAGE="$$MYAPP_IMAGE"; \
+		echo "Using provided MYAPP_IMAGE=$$IMAGE"; \
+	else \
+		echo "MYAPP_IMAGE not set, building and using local staging image $(LOCAL_MYAPP_IMAGE_STAGING)"; \
+		$(MAKE) build-myapp-staging-local; \
+		IMAGE="$(LOCAL_MYAPP_IMAGE_STAGING)"; \
+	fi; \
+	echo "Deploying myapp to myapp-staging namespace with image $$IMAGE..."; \
+	$(MAKE) k8-deploy-myapp \
+		CHART_NAME="myapp-staging" \
+		K8S_NAMESPACE="myapp-staging" \
+		ENV_VALUES="environments/staging/values-myapp.yaml" \
+		MYAPP_IMAGE="$$IMAGE"
+
+	@echo "Cleaning up old myapp-staging pods not using $(LOCAL_MYAPP_IMAGE_STAGING)..."
+	@kubectl -n myapp-staging get pods -l app.kubernetes.io/name=myapp -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.containers[0].image}{"\n"}{end}' \
+	 | awk '$$2 != "$(LOCAL_MYAPP_IMAGE_STAGING)" {print $$1}' \
+	 | xargs -r kubectl -n myapp-staging delete pod
+
+	$(MAKE) k8s-smoke-staging
+	@echo "End-to-end STAGING smoke (app deploy + observability + HTTP) completed."
+
+.PHONY: k8s-smoke-dev
+# CI/CD jobs: create secret + deploy app (as you have).
+# k8s-smoke-dev: assume app is deployed, only do observability 
+# 				 wiring + checks.
+k8s-smoke-dev: ## Observability smoke for DEV (assumes dev app already deployed)
+	@echo "Running DEV observability smoke (stack + app checks)..."
+	$(MAKE) k8s-observability-dev         # namespaces + monitoring + logging + rules + dashboards + netpol
+	$(MAKE) k8s-observability-infra-check # Prom/Grafana/Loki in monitoring/logging
+	$(MAKE) k8s-observability-check-dev   # Pod-level health (probes + logs), app-level checks in myapp-dev
+	$(MAKE) k8s-http-smoke-dev			  # Service-level behavior, 
+	@echo "End-to-end DEV smoke (observability + HTTP) completed."
+
+k8s-smoke-staging: ## Observability smoke for STAGING (assumes staging app already deployed)
+	@echo "Running STAGING observability smoke (stack + app checks)..."
+	$(MAKE) k8s-observability-staging         # namespaces + monitoring + logging + rules + dashboards + netpol
+	$(MAKE) k8s-observability-infra-check # Prom/Grafana/Loki in monitoring/logging
+	$(MAKE) k8s-observability-check-staging   # app-level checks in myapp-staging
+	$(MAKE) k8s-http-smoke-staging			  # Service-level behavior,
+	@echo "End-to-end STAGING smoke (observability + HTTP) completed."
+
+k8s-smoke-prod: ## Observability smoke for PROD (assumes prod app already deployed)
+	@echo "Running PROD observability smoke (stack + app checks)..."
+	$(MAKE) k8s-observability-prod         # namespaces + monitoring + logging + rules + dashboards + netpol
+	$(MAKE) k8s-observability-infra-check # Prom/Grafana/Loki in monitoring/logging
+	$(MAKE) k8s-observability-check-prod   # app-level checks in myapp-prod
+	$(MAKE) k8s-http-smoke-prod			  # Service-level behavior,
+	@echo "End-to-end PROD smoke (observability + HTTP) completed."
+
+# # Staging: deploy myapp to myapp-staging and then run observability checks.
+# k8s-smoke-staging: ensure-minikube k8-deploy-myapp-staging k8s-observability-staging k8s-observability-check-staging ## Deploy + observability smoke for STAGING
+# 	@echo "End-to-end STAGING smoke (app deploy + observability) completed."
+
+# # Prod: deploy myapp to myapp-prod and then run observability checks.
+# k8s-smoke-prod: ensure-minikube k8-deploy-myapp-prod k8s-observability-prod k8s-observability-check-prod ## Deploy + observability smoke for PROD
+# 	@echo "End-to-end PROD smoke (app deploy + observability) completed."
 
 # Convenience target to run dev/staging/prod smokes in sequence (local minikube).
 k8s-smoke-all: k8s-smoke-dev k8s-smoke-staging k8s-smoke-prod ## Deploy + observability smoke for all envs
@@ -1399,9 +1625,46 @@ k8s-clean-pvcs:
 	@echo "Deleting all PersistentVolumeClaims in the cluster (dev-only)..."
 	kubectl delete pvc --all --all-namespaces || true
 
-.PHONY: k8s-nuke
+#	- docker ps -a --filter "ancestor=myapp:dev-local" -q lists containers created from that image.
+# 	- xargs -r docker rm -f removes them forcefully if any exist.
+#	- Then the docker image rm myapp:dev-local will succeed because no 
+#	  containers reference it anymore.
+#	- docker image prune -f cleans up dangling images.
+.PHONY: clean-local-dev-images
+clean-local-dev-images: ## Remove local dev containers/images to free space
+	@echo "Stopping and removing containers using $(LOCAL_MYAPP_IMAGE_DEV) (if any)..."
+	@docker ps -a --filter "ancestor=$(LOCAL_MYAPP_IMAGE_DEV)" -q | xargs -r docker rm -f
+	@echo "Removing image $(LOCAL_MYAPP_IMAGE_DEV) (if present)..."
+	@docker image rm $(LOCAL_MYAPP_IMAGE_DEV) || true
+	@echo "Pruning dangling images..."
+	@docker image prune -f
 
+.PHONY: clean-local-staging-images
+clean-local-staging-images: ## Remove local staging images to free space
+	@echo "Stopping and removing containers using $(LOCAL_MYAPP_IMAGE_STAGING) (if any)..."
+	@docker ps -a --filter "ancestor=$(LOCAL_MYAPP_IMAGE_STAGING)" -q | xargs -r docker rm -f	
+	@echo "Removing image $(LOCAL_MYAPP_IMAGE_STAGING) (if present)..."	
+	@echo "Pruning dangling images..."	
+	@docker image prune -f
+
+.PHONY: clean-local-prod-images
+clean-local-prod-images: ## Remove local dev containers/images to free space
+	@echo "Stopping and removing containers using $(LOCAL_MYAPP_IMAGE_PROD) (if any)..."
+	@docker ps -a --filter "ancestor=$(LOCAL_MYAPP_IMAGE_PROD)" -q | xargs -r docker rm -f
+	@echo "Removing image $(LOCAL_MYAPP_IMAGE_PROD) (if present)..."
+	@docker image rm $(LOCAL_MYAPP_IMAGE_PROD) || true
+	@echo "Pruning dangling images..."
+	@docker image prune -f
+
+.PHONY: clean-local-images
+clean-local-images:
+	$(MAKE) clean-local-dev-images
+	$(MAKE) clean-local-staging-images
+	$(MAKE) clean-local-prod-images
+
+.PHONY: k8s-nuke
 k8s-nuke:
+	$(MAKE) clean-local-images
 	@echo "!!! FULL NUKE: cleaning namespaces/PVCs and recreating Minikube cluster !!!"
 	$(MAKE) k8s-clean-minikube
 	$(MAKE) recreate-minikube
