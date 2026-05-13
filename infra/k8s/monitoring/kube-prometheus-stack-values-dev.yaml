@@ -49,6 +49,8 @@
 # A common dev workflow is: deploy this stack, expose your app metrics, verify 
 # Prometheus targets are healthy, import a dashboard in Grafana, and then test 
 # one alert rule to confirm Alertmanager works.
+global:
+  environment: dev
 prometheusOperator:
   resources: #  defines how much CPU and memory the operator can use.
     requests: # the minimum guaranteed resources Kubernetes reserves for it.

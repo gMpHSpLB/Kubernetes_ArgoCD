@@ -60,6 +60,8 @@
 # Avoid exposing Prometheus/Alertmanager publicly.
 # Consider persistent storage for Prometheus and plan disk sizing carefully.
 # Use environment-specific values files: values-dev.yaml, values-staging.yaml, values-prod.yaml.
+global:
+  environment: prod
 prometheusOperator:
   resources:
     requests:

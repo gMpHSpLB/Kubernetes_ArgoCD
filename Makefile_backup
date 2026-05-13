@@ -95,26 +95,14 @@ K8S_MYAPP_DEPLOY_PROD    	?= myapp-prod-myapp
 K8S_MONITORING_NAMESPACE ?= monitoring
 K8S_LOGGING_NAMESPACE    ?= logging
 
-# Monitoring chart (umbrella around kube-prometheus-stack)
-K8S_MONITORING_CHART_DIR      ?= infra/k8s/monitoring
-K8S_MONITORING_RELEASE        ?= cluster-monitoring-infra
-
-K8S_KPS_VALUES_DEV            ?= $(K8S_MONITORING_CHART_DIR)/kube-prometheus-stack-values-dev.yaml
-K8S_KPS_VALUES_STAGING        ?= $(K8S_MONITORING_CHART_DIR)/kube-prometheus-stack-values-staging.yaml
-K8S_KPS_VALUES_PROD           ?= $(K8S_MONITORING_CHART_DIR)/kube-prometheus-stack-values-prod.yaml
-
-K8S_MONITORING_VALUES_DEV     ?= $(K8S_KPS_VALUES_DEV)
-K8S_MONITORING_VALUES_STAGING ?= $(K8S_KPS_VALUES_STAGING)
-K8S_MONITORING_VALUES_PROD    ?= $(K8S_KPS_VALUES_PROD)
-
 # kube-prometheus-stack / Loki releases & values
 K8S_KPS_RELEASE      ?= kps
 K8S_LOKI_RELEASE     ?= loki
 K8S_PROM_CRDS_RELEASE ?= prometheus-operator-crds
 K8S_PROM_CRDS_CHART   ?= prometheus-community/prometheus-operator-crds
-# K8S_KPS_VALUES_DEV   ?= infra/k8s/monitoring/kube-prometheus-stack-values-dev.yaml
-# K8S_KPS_VALUES_STAGING ?= infra/k8s/monitoring/kube-prometheus-stack-values-staging.yaml
-# K8S_KPS_VALUES_PROD  ?= infra/k8s/monitoring/kube-prometheus-stack-values-prod.yaml
+K8S_KPS_VALUES_DEV   ?= infra/k8s/monitoring/kube-prometheus-stack-values-dev.yaml
+K8S_KPS_VALUES_STAGING ?= infra/k8s/monitoring/kube-prometheus-stack-values-staging.yaml
+K8S_KPS_VALUES_PROD  ?= infra/k8s/monitoring/kube-prometheus-stack-values-prod.yaml
 K8S_LOKI_VALUES_DEV  ?= infra/k8s/logging/loki-stack-values-dev.yaml
 K8S_LOKI_VALUES_STAGING ?= infra/k8s/logging/loki-stack-values-staging.yaml
 K8S_LOKI_VALUES_PROD ?= infra/k8s/logging/loki-stack-values-prod.yaml
@@ -1181,55 +1169,24 @@ endef
 # 		- then run this target to deploy observability components,
 #		- and finally open Grafana to inspect cluster metrics and dashboards.
 # Install/upgrade kube-prometheus-stack in dev (current kube-context)
-# k8s-monitoring-dev: helm-add-repos ensure-minikube
-# 	@echo "Installing/Upgrading kube-prometheus-stack (dev) in namespace $(K8S_MONITORING_NAMESPACE)..."
-# 	helm upgrade --install $(K8S_KPS_RELEASE) prometheus-community/kube-prometheus-stack \
-# 	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
-# 	  -f $(K8S_KPS_VALUES_DEV)
-
-# k8s-monitoring-staging: helm-add-repos ensure-minikube
-# 	@echo "Installing/Upgrading kube-prometheus-stack (staging)..."
-# 	helm upgrade --install $(K8S_KPS_RELEASE)-staging prometheus-community/kube-prometheus-stack \
-# 	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
-# 	  -f $(K8S_KPS_VALUES_STAGING)
-
-# k8s-monitoring-prod: helm-add-repos ensure-minikube
-# 	@echo "Installing/Upgrading kube-prometheus-stack (prod)..."
-# 	helm upgrade --install $(K8S_KPS_RELEASE)-prod prometheus-community/kube-prometheus-stack \
-# 	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
-# 	  -f $(K8S_KPS_VALUES_PROD)
-
-#  just make k8s-monitoring-* use the umbrella chart for cluster under monitoring
-# Notes:
-# - Uses infra/k8s/monitoring as chart.
-# - Uses your kube-prometheus-stack-values-dev.yaml unchanged.
-# - Suffix -dev on release if you want separate releases per env on 
-#    one cluster (dev/staging/prod namespaces); if you’re using separate 
-#    clusters per env, you can drop the suffix and just keep cluster-monitoring-infra.
-.PHONY: k8s-monitoring-dev
 k8s-monitoring-dev: helm-add-repos ensure-minikube
-	@echo "Installing/Upgrading cluster monitoring (dev) with umbrella chart in namespace $(K8S_MONITORING_NAMESPACE)..."
-	helm upgrade --install $(K8S_MONITORING_RELEASE)-dev \
-	  $(K8S_MONITORING_CHART_DIR) \
+	@echo "Installing/Upgrading kube-prometheus-stack (dev) in namespace $(K8S_MONITORING_NAMESPACE)..."
+	helm upgrade --install $(K8S_KPS_RELEASE) prometheus-community/kube-prometheus-stack \
 	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
-	  -f $(K8S_MONITORING_VALUES_DEV)
+	  -f $(K8S_KPS_VALUES_DEV)
 
-.PHONY: k8s-monitoring-staging
 k8s-monitoring-staging: helm-add-repos ensure-minikube
-	@echo "Installing/Upgrading cluster monitoring (staging) with umbrella chart in namespace $(K8S_MONITORING_NAMESPACE)..."
-	helm upgrade --install $(K8S_MONITORING_RELEASE)-staging \
-	  $(K8S_MONITORING_CHART_DIR) \
+	@echo "Installing/Upgrading kube-prometheus-stack (staging)..."
+	helm upgrade --install $(K8S_KPS_RELEASE)-staging prometheus-community/kube-prometheus-stack \
 	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
-	  -f $(K8S_MONITORING_VALUES_STAGING)
+	  -f $(K8S_KPS_VALUES_STAGING)
 
-.PHONY: k8s-monitoring-prod
 k8s-monitoring-prod: helm-add-repos ensure-minikube
-	@echo "Installing/Upgrading cluster monitoring (prod) with umbrella chart in namespace $(K8S_MONITORING_NAMESPACE)..."
-	helm upgrade --install $(K8S_MONITORING_RELEASE)-prod \
-	  $(K8S_MONITORING_CHART_DIR) \
+	@echo "Installing/Upgrading kube-prometheus-stack (prod)..."
+	helm upgrade --install $(K8S_KPS_RELEASE)-prod prometheus-community/kube-prometheus-stack \
 	  -n $(K8S_MONITORING_NAMESPACE) --create-namespace \
-	  -f $(K8S_MONITORING_VALUES_PROD)
-	  
+	  -f $(K8S_KPS_VALUES_PROD)
+
 #apply Grafana dashboards per env
 .PHONY: k8s-grafana-dashboards-dev k8s-grafana-dashboards-staging k8s-grafana-dashboards-prod k8s-grafana-dashboards-all
 
