@@ -9,8 +9,13 @@
 #
 #   - You don’t need to run helm dependency update manually for Argo CD; 
 #   it will resolve the dependencies automatically.
+global:
+  # default environment; safe to keep as dev or generic
+  environment: dev
+
 kube-prometheus-stack:
   # You can move your existing top-level keys under this if you want,
   # but since your values files are already shaped for the upstream chart,
   # we can simply keep them as-is and not put much here at first.
   enabled: true
+

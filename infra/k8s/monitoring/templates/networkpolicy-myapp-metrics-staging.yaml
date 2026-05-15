@@ -1,4 +1,4 @@
-{{- if eq .Values.global.environment "staging" }}
+{{- if and .Values.global (eq .Values.global.environment "staging") }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
