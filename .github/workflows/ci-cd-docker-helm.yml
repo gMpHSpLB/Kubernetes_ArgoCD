@@ -1,4 +1,15 @@
-name: Monorepo CI-CD pipeline # For dev/staging/prod environment
+# Manual pipeline (ci-cd-docker-helm.yml):
+#   Triggered only via Actions → Run workflow (manual).
+#   Uses your existing Helm Make wrappers to deploy any image to any env when you explicitly request it.
+#
+# How to trigger manually:
+#   Push this workflow to main.
+#   Go to GitHub → your repo → Actions tab.
+#   Select “Monorepo CI-CD pipeline - Manual Helm deploy (dev/staging/prod)”.
+#   Click Run workflow, choose branch (main) and fill:
+#     environment: dev/staging/prod.
+#   Click Run workflow; GitHub will start a run
+name: Monorepo CI-CD pipeline - Manual Helm deploy (dev/staging/prod) # For dev/staging/prod environment
 #1. Build Promotion Flow: You don’t just run CI once — you run different stages for different environments
 #     build once → promote many times
 #     dev → staging → prod (same image is promoted to different environment)
@@ -30,11 +41,22 @@ name: Monorepo CI-CD pipeline # For dev/staging/prod environment
 #     app reads everything from env vars, and each environment provides different
 #     values
 on: # this is GitHub Actions trigger
-  push: #Both CI and CD happens. 'git tag v1.0.0' then 'git push origin v1.0.0'
-    branches: [main]
-    tags:
-      - "v*" # trigger only on version tags
+  # push: #Both CI and CD happens. 'git tag v1.0.0' then 'git push origin v1.0.0'
+  #   branches: [main]
+  #   tags:
+  #     - "v*" # trigger only on version tags
 
+  # #GitHub Actions. It uses workflow_dispatch for controlled staging promotion,
+  # #tag-based production deploys, environment protection, and shared values passed
+  # #with job outputs. GitHub Actions supports manual triggers, environment protection rules,
+  # #and passing outputs between jobs this way.
+  # workflow_dispatch: #for manual staging deploys
+  #   inputs:
+  #     promote_to_staging:
+  #       description: "Promote current dev image to staging"
+  #       required: false
+  #       type: boolean
+  #       default: false
   #GitHub Actions. It uses workflow_dispatch for controlled staging promotion,
   #tag-based production deploys, environment protection, and shared values passed
   #with job outputs. GitHub Actions supports manual triggers, environment protection rules,
@@ -42,10 +64,13 @@ on: # this is GitHub Actions trigger
   workflow_dispatch: #for manual staging deploys
     inputs:
       promote_to_staging:
-        description: "Promote current dev image to staging"
-        required: false
-        type: boolean
-        default: false
+        description: "Target environment (dev/staging/prod)- Promote current dev image to staging"
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
 
 permissions: #Add permissions in workflow. Make sure to Enable package permissions in Github : Enable package permissions
   contents: read
@@ -386,36 +411,21 @@ jobs:
             K8_DB_PASSWORD=${{ secrets.K8_DEV_DB_PASSWORD }} \
             K8_UPTRACE_TOKEN=${{ secrets.K8_DEV_UPTRACE_TOKEN }} \
             K8_UPTRACE_DSN=${{ secrets.K8_DEV_UPTRACE_DSN }}
-      # Disable Helm deployment
-      # - name: k8 Deploy myapp Dev image
-      #   run: |
-      #     make k8-deploy-myapp \
-      #       CHART_NAME="myapp-dev" \
-      #       K8S_NAMESPACE=myapp-dev \
-      #       ENV_VALUES="environments/dev/values-myapp.yaml"
-      #       MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_dev }}
+      
+      - name: k8 Deploy myapp Dev image
+        run: |
+          make k8-deploy-myapp \
+            CHART_NAME="myapp-dev" \
+            K8S_NAMESPACE=myapp-dev \
+            ENV_VALUES="environments/dev/values-myapp.yaml"
+            MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_dev }}
             
-      # - name: k8 Deploy mylearning Dev image
-      #   run: |
-      #     make k8-deploy-mylearning \
-      #       CHART_NAME="mylearning-dev" \
-      #       ENV_VALUES="environments/dev/values-mylearning.yaml"
-      #       MYLEARNING_IMAGE=${{ needs.ci.outputs.image_mylearning_dev }}
-      - name: Install ArgoCD CLI (via Make)
+      - name: k8 Deploy mylearning Dev image
         run: |
-          make argocd-cli-install-ci
-
-      - name: Set dev image via ArgoCD
-        env:
-          ARGOCD_SERVER_URL: ${{ secrets.ARGOCD_SERVER_URL }}
-          ARGOCD_USERNAME: ${{ secrets.ARGOCD_USERNAME }}
-          ARGOCD_PASSWORD: ${{ secrets.ARGOCD_PASSWORD }}
-        run: |
-          IMAGE="${{ needs.ci.outputs.image_myapp_dev }}" \
-          ARGOCD_SERVER_URL="$ARGOCD_SERVER_URL" \
-          ARGOCD_USERNAME="$ARGOCD_USERNAME" \
-          ARGOCD_PASSWORD="$ARGOCD_PASSWORD" \
-          make argocd-set-image-dev
+          make k8-deploy-mylearning \
+            CHART_NAME="mylearning-dev" \
+            ENV_VALUES="environments/dev/values-mylearning.yaml"
+            MYLEARNING_IMAGE=${{ needs.ci.outputs.image_mylearning_dev }}
 
       - name: Install kubectl and helm
         uses: azure/setup-kubectl@v4
@@ -433,20 +443,13 @@ jobs:
       - name: Diff dev Grafana dashboards
         run: |
           make k8s-grafana-dashboards-diff-dev
-      #  switch dev smoke to ArgoCD smoke
-      # - name: K8s dev smoke (deploy + observability)
-      #   env:
-      #     EXPECTED_IMAGE_DEV: ${{ needs.ci.outputs.image_myapp_dev }}      
-      #   run: |
-      #     make k8s-smoke-dev
-      #     make k8s-observability-infra-check   # infra shared, but invoked here too
 
-      - name: K8s dev smoke (ArgoCD deploy + observability)
+      - name: K8s dev smoke (deploy + observability)
         env:
-          EXPECTED_IMAGE_DEV: ${{ needs.ci.outputs.image_myapp_dev }}
+          EXPECTED_IMAGE_DEV: ${{ needs.ci.outputs.image_myapp_dev }}      
         run: |
-          make k8s-smoke-dev-argocd
-          make k8s-observability-infra-check
+          make k8s-smoke-dev
+          make k8s-observability-infra-check   # infra shared, but invoked here too
 
       - name: Tear down dev stack
         env:
@@ -543,35 +546,20 @@ jobs:
             K8_UPTRACE_TOKEN=${{ secrets.K8_STAGING_UPTRACE_TOKEN }} \
             K8_UPTRACE_DSN=${{ secrets.K8_STAGING_UPTRACE_DSN }}
       
-      # - name: k8 Deploy myapp Staging image
-      #   run: |
-      #     make k8-deploy-myapp \
-      #       CHART_NAME="myapp-staging" \
-      #       K8S_NAMESPACE=myapp-staging \
-      #       ENV_VALUES="environments/staging/values-myapp.yaml"
-      #       MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_staging }}
+      - name: k8 Deploy myapp Staging image
+        run: |
+          make k8-deploy-myapp \
+            CHART_NAME="myapp-staging" \
+            K8S_NAMESPACE=myapp-staging \
+            ENV_VALUES="environments/staging/values-myapp.yaml"
+            MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_staging }}
             
-      # - name: k8 Deploy mylearning Staging image
-      #   run: |
-      #     make k8-deploy-mylearning \
-      #       CHART_NAME="mylearning-staging" \
-      #       ENV_VALUES="environments/staging/values-mylearning.yaml"
-      #       MYLEARNING_IMAGE=${{ needs.ci.outputs.image_mylearning_staging }}
-      - name: Install ArgoCD CLI (via Make)
+      - name: k8 Deploy mylearning Staging image
         run: |
-          make argocd-cli-install-ci
-
-      - name: Set staging image via ArgoCD
-        env:
-          ARGOCD_SERVER_URL: ${{ secrets.ARGOCD_SERVER_URL }}
-          ARGOCD_USERNAME: ${{ secrets.ARGOCD_USERNAME }}
-          ARGOCD_PASSWORD: ${{ secrets.ARGOCD_PASSWORD }}
-        run: |
-          IMAGE="${{ needs.ci.outputs.image_myapp_staging }}" \
-          ARGOCD_SERVER_URL="$ARGOCD_SERVER_URL" \
-          ARGOCD_USERNAME="$ARGOCD_USERNAME" \
-          ARGOCD_PASSWORD="$ARGOCD_PASSWORD" \
-          make argocd-set-image-staging
+          make k8-deploy-mylearning \
+            CHART_NAME="mylearning-staging" \
+            ENV_VALUES="environments/staging/values-mylearning.yaml"
+            MYLEARNING_IMAGE=${{ needs.ci.outputs.image_mylearning_staging }}
 
       - name: Install kubectl and helm
         uses: azure/setup-kubectl@v4
@@ -590,19 +578,12 @@ jobs:
         run: |
           make k8s-grafana-dashboards-diff-staging
 
-      # - name: K8s staging smoke (deploy + observability)
-      #   env:
-      #     EXPECTED_IMAGE_STAGING: ${{ needs.ci.outputs.image_myapp_staging }}
-      #   run: |
-      #     make k8s-smoke-staging
-      #     make k8s-observability-infra-check   # infra shared, but invoked here too
-
-      - name: K8s staging smoke (ArgoCD deploy + observability)
+      - name: K8s staging smoke (deploy + observability)
         env:
           EXPECTED_IMAGE_STAGING: ${{ needs.ci.outputs.image_myapp_staging }}
         run: |
-          make k8s-smoke-staging-argocd
-          make k8s-observability-infra-check
+          make k8s-smoke-staging
+          make k8s-observability-infra-check   # infra shared, but invoked here too
 
       - name: Tear down staging stack
         env:
@@ -682,36 +663,20 @@ jobs:
             K8_UPTRACE_TOKEN=${{ secrets.K8_PROD_UPTRACE_TOKEN }} \
             K8_UPTRACE_DSN=${{ secrets.K8_PROD_UPTRACE_DSN }}
       
-      # - name: k8 Deploy myapp Prod image
-      #   run: |
-      #     make k8-deploy-myapp \
-      #       CHART_NAME="myapp-prod" \
-      #       K8S_NAMESPACE=myapp-prod \
-      #       ENV_VALUES="environments/prod/values-myapp.yaml"
-      #       MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_prod }}
+      - name: k8 Deploy myapp Prod image
+        run: |
+          make k8-deploy-myapp \
+            CHART_NAME="myapp-prod" \
+            K8S_NAMESPACE=myapp-prod \
+            ENV_VALUES="environments/prod/values-myapp.yaml"
+            MYAPP_IMAGE=${{ needs.ci.outputs.image_myapp_prod }}
             
-      # - name: k8 Deploy mylearning Prod image
-      #   run: |
-      #     make k8-deploy-mylearning \
-      #       CHART_NAME="mylearning-prod" \
-      #       ENV_VALUES="environments/prod/values-mylearning.yaml"
-      #       MYLEARNING_IMAGE=${{ needs.ci.outputs.image_mylearning_prod }}
-
-      - name: Install ArgoCD CLI (via Make)
+      - name: k8 Deploy mylearning Prod image
         run: |
-          make argocd-cli-install-ci
-
-      - name: Set prod image via ArgoCD
-        env:
-          ARGOCD_SERVER_URL: ${{ secrets.ARGOCD_SERVER_URL }}
-          ARGOCD_USERNAME: ${{ secrets.ARGOCD_USERNAME }}
-          ARGOCD_PASSWORD: ${{ secrets.ARGOCD_PASSWORD }}
-        run: |
-          IMAGE="${{ needs.ci.outputs.image_myapp_prod }}" \
-          ARGOCD_SERVER_URL="$ARGOCD_SERVER_URL" \
-          ARGOCD_USERNAME="$ARGOCD_USERNAME" \
-          ARGOCD_PASSWORD="$ARGOCD_PASSWORD" \
-          make argocd-set-image-prod
+          make k8-deploy-mylearning \
+            CHART_NAME="mylearning-prod" \
+            ENV_VALUES="environments/prod/values-mylearning.yaml"
+            MYLEARNING_IMAGE=${{ needs.ci.outputs.image_mylearning_prod }}
 
       - name: Install kubectl and helm
         uses: azure/setup-kubectl@v4
@@ -740,22 +705,14 @@ jobs:
         run: |
           make k8s-grafana-dashboards-diff-prod
 
-      # - name: K8s prod smoke (deploy + observability)
-      #   env:
-      #     EXPECTED_IMAGE_PROD: ${{ needs.ci.outputs.image_myapp_prod }}        
-      #     AWSACCESSKEYID: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
-      #     AWSSECRETACCESSKEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
-      #   run: |
-      #     make k8s-smoke-prod
-      #     make k8s-observability-infra-check   # infra shared, but invoked here too
-      - name: K8s prod smoke (ArgoCD deploy + observability)
+      - name: K8s prod smoke (deploy + observability)
         env:
-          EXPECTED_IMAGE_PROD: ${{ needs.ci.outputs.image_myapp_prod }}
+          EXPECTED_IMAGE_PROD: ${{ needs.ci.outputs.image_myapp_prod }}        
           AWSACCESSKEYID: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
           AWSSECRETACCESSKEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
         run: |
-          make k8s-smoke-prod-argocd
-          make k8s-observability-infra-check
+          make k8s-smoke-prod
+          make k8s-observability-infra-check   # infra shared, but invoked here too
 
   #Deploy to real Production Server
   #What this does:

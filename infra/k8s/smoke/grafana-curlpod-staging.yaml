@@ -1,0 +1,28 @@
+# Update it to include a secure securityContext and a non-root user:
+# runAsNonRoot: true with runAsUser: 1000 satisfies the restricted requirement that the pod must not run as root.
+# allowPrivilegeEscalation: false and capabilities.drop: ["ALL"] satisfy the privilege restrictions.
+# seccompProfile.type: RuntimeDefault matches the restricted profile requirement.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: grafana-curlpod
+  namespace: monitoring
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: grafana-curlpod
+      image: curlimages/curl
+      command:
+        - sh
+        - -c
+        - curl -sf http://kps-staging-grafana/login
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+  restartPolicy: Never
+

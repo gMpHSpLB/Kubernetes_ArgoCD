@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: grafana-curlpod
+  namespace: monitoring
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: grafana-curlpod
+      image: curlimages/curl
+      command:
+        - sh
+        - -c
+        - curl -sf http://kps-prod-grafana/login
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+  restartPolicy: Never
