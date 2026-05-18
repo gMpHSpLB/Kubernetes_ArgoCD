@@ -1,13 +1,16 @@
+# Use Bash for shell commands in recipes.
+# This gives us better shell features than plain sh.
 SHELL := /bin/bash
 
 # Default target
 .DEFAULT_GOAL := help
-
-# Self-documenting help: list targets with "##" comments
 .PHONY: help
-help:
-	@echo "Available targets:"
-	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-30s\033[0m %s\n", $$1, $$2}'
+# Self-documenting help: list targets with "##" comments
+help: ## Show all available targets with short descriptions.
+	# This target reads the Makefile and prints any line ending with ##.
+	# Use this when you want to discover available commands quickly.
+	# Expected output: a list of targets and one-line descriptions.
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_.-]+:.*##/ { printf "  %-28s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 .PHONY: lint format type security quality security-deps docker-security-deps docker-scan docker-scan-dev-image \
         coverage smoke-test test docker-build docker-db docker-test run check-api clean-coverage clean \
@@ -18,9 +21,32 @@ help:
 		deploy-minikube-db test-minikube-db k8s-test-db \
 		deploy-myapp-minikube-dev deploy-mylearning-minikube-dev \
 
-SHELL := /bin/bash
+# ---------- GLOBAL CONFIG --------------------------------------
 
-# ---------- GLOBAL CONFIG ----------
+# ------------------------Minikube ------------------------------
+# Default minikube profile name.
+# A profile is like a named cluster configuration stored by minikube.
+# Use this if you want multiple local clusters on the same machine.
+MINIKUBE_PROFILE ?= minikube
+
+# Docker driver means minikube runs Kubernetes inside a Docker container.
+# Best for WSL2 + Docker Desktop setups like yours.
+MINIKUBE_DRIVER  ?= docker
+
+# Memory allocated to the minikube cluster, in MB.
+# 6144 = 6 GB because 1 GB = 1024 MB in binary units.
+MINIKUBE_MEMORY  ?= 6144
+
+# Number of CPU cores assigned to minikube.
+# Increase for heavier workloads, decrease if your laptop is under pressure.
+MINIKUBE_CPUS    ?= 4
+
+# Default namespace for kubectl commands.
+# If not set on the command line, it uses "default".
+NAMESPACE        ?= default
+
+# ----------------------------------------------------------------------
+
 APP_ENV ?= dev
 
 # Control whether k8s-test re-creates Minikube or reuses existing cluster
@@ -500,7 +526,110 @@ check-metrics:
 
 
 ######Deployment using Kubernetes K8S CLUSTER / NAMESPACES (MINIKUBE)########################
-.PHONY: ensure-minikube recreate-minikube install-prometheus-operator-crds k8s-namespaces-all k8s-namespace-monitoring k8s-namespaces-myapp
+.PHONY: status-minikube ensure-minikube start-minikube stop-minikube \
+        recreate-minikube update-minikube-context delete-minikube \
+        kubectl-get-nodes kubectl-get-pods kubectl-get-all kubectl-describe-node \
+        kubectl-logs kubectl-top-pods dry-run \
+		install-prometheus-operator-crds k8s-namespaces-all k8s-namespace-monitoring k8s-namespaces-myapp
+
+status-minikube: ## Show current minikube cluster status.
+	# Use this when you want to check whether minikube is running or broken.
+	# It prints host, kubelet, apiserver, and kubeconfig state.
+	# Expected output: status lines such as Running, Stopped, or Configured.
+	@minikube status -p $(MINIKUBE_PROFILE) || true
+
+ensure-minikube: ## Start minikube only if the cluster is not ready.
+	# Use this before kubectl or app deployment targets.
+	# It checks whether the apiserver is Running, and starts minikube only if needed.
+	# This avoids restarting an already working cluster.
+	# Expected output: either "Minikube not ready, starting..." or nothing except kubeconfig refresh.
+	@echo "Checking minikube status..."
+	@set -e; \
+	if ! minikube status -p $(MINIKUBE_PROFILE) 2>/dev/null | grep -q "apiserver: Running"; then \
+		echo "Minikube not ready, starting..."; \
+		minikube start -p $(MINIKUBE_PROFILE) --driver=$(MINIKUBE_DRIVER) --memory=$(MINIKUBE_MEMORY) --cpus=$(MINIKUBE_CPUS); \
+	fi
+	@minikube update-context -p $(MINIKUBE_PROFILE) >/dev/null
+
+start-minikube: ## Start minikube explicitly.
+	# Use this when you want to start the cluster manually, even if it is already stopped.
+	# The driver, memory, and CPU settings control how the cluster is created.
+	# Expected output: minikube startup logs and a success message when Kubernetes is ready.
+	@minikube start -p $(MINIKUBE_PROFILE) --driver=$(MINIKUBE_DRIVER) --memory=$(MINIKUBE_MEMORY) --cpus=$(MINIKUBE_CPUS)
+	@minikube update-context -p $(MINIKUBE_PROFILE)
+
+stop-minikube: ## Stop minikube safely.
+	# Use this when you want to pause the cluster and free local resources.
+	# This keeps the profile and data, but stops the running cluster.
+	# Expected output: cluster stop confirmation.
+	@minikube stop -p $(MINIKUBE_PROFILE) || true
+
+delete-minikube: ## Delete the minikube profile.
+	# Use this when you want to remove the cluster configuration completely.
+	# This is more destructive than stop, because it removes the profile data.
+	# Expected output: delete confirmation or no error if the profile does not exist.
+	@minikube delete -p $(MINIKUBE_PROFILE) --purge=true || true
+
+update-minikube-context: ## Refresh kubectl context for minikube.
+	# Use this when kubectl points to a stale endpoint or after reboot/restart.
+	# It rewrites kubeconfig so kubectl talks to the correct minikube API server.
+	# Expected output: context updated message.
+	@minikube update-context -p $(MINIKUBE_PROFILE)
+
+recreate-minikube: ## Recreate minikube from scratch.
+	# Use this when the cluster is badly broken or the control plane will not start.
+	# It stops the cluster, deletes the profile, and starts a fresh one.
+	# This is the "hard reset" path.
+	# Expected output: full minikube start logs and a healthy cluster.
+	@echo "Recreating Minikube cluster..."
+	@minikube stop -p $(MINIKUBE_PROFILE) || true
+	@minikube delete -p $(MINIKUBE_PROFILE) --all=true --purge=true || true
+	@minikube start -p $(MINIKUBE_PROFILE) --driver=$(MINIKUBE_DRIVER) --memory=$(MINIKUBE_MEMORY) --cpus=$(MINIKUBE_CPUS)
+	@minikube update-context -p $(MINIKUBE_PROFILE)
+
+dry-run: ## Show the exact minikube start command that will run.
+	# Use this when you want to verify the resolved parameters before starting.
+	# It does not start anything; it only prints the final command.
+	# Expected output: one line showing minikube start with current values.
+	@echo minikube start -p $(MINIKUBE_PROFILE) --driver=$(MINIKUBE_DRIVER) --memory=$(MINIKUBE_MEMORY) --cpus=$(MINIKUBE_CPUS)
+
+kubectl-get-nodes: ensure-minikube ## List Kubernetes nodes.
+	# Use this to verify the cluster is healthy after starting minikube.
+	# If minikube is working, you should see the minikube node listed here.
+	# Expected output: a node table with minikube in Ready state.
+	@kubectl get nodes
+
+kubectl-get-pods: ensure-minikube ## List pods in the selected namespace.
+	# Use this to inspect workloads in one namespace.
+	# Change NAMESPACE=... if your app is deployed elsewhere.
+	# Expected output: pod names, readiness, status, restarts, and age.
+	@kubectl get pods -n $(NAMESPACE)
+
+kubectl-get-all: ensure-minikube ## List all resources in the selected namespace.
+	# Use this for a broad overview of objects like pods, services, deployments, etc.
+	# This is helpful when debugging a namespace.
+	# Expected output: a combined list of resources in that namespace.
+	@kubectl get all -n $(NAMESPACE)
+
+kubectl-describe-node: ensure-minikube ## Show detailed information about the minikube node.
+	# Use this when you need detailed cluster node information, such as conditions and capacity.
+	# This is useful for debugging resource or scheduling issues.
+	# Expected output: detailed node metadata, events, and resource info.
+	@kubectl describe node minikube
+
+kubectl-logs: ensure-minikube ## Show pod logs. Usage: make kubectl-logs POD=<pod-name> [CONTAINER=<container>]
+	# Use this when you need application logs for debugging.
+	# POD is required because kubectl logs must know which pod to read from.
+	# CONTAINER is optional and useful for multi-container pods.
+	# Expected output: the live or previous logs of the selected pod.
+	@if [ -z "$(POD)" ]; then echo "Usage: make kubectl-logs POD=<pod-name> [CONTAINER=<container>]"; exit 1; fi
+	@kubectl logs -n $(NAMESPACE) $(POD) $(if $(CONTAINER),-c $(CONTAINER),)
+
+kubectl-top-pods: ensure-minikube ## Show resource usage of pods.
+	# Use this when you want to monitor CPU and memory usage of running pods.
+	# This requires metrics-server to be available in the cluster.
+	# Expected output: CPU and memory metrics for each pod.
+	@kubectl top pods -n $(NAMESPACE) || true
 
 # Create or update K8s Secrets needed for dev/staging/prod
 # Leading - before kubectl delete tells make: ignore error if the secret doesn’t exist.
@@ -517,21 +646,6 @@ create-secrets:
 	  --from-literal=DB_PASSWORD=$(K8_DB_PASSWORD) \
 	  --from-literal=UPTRACE_TOKEN=$(K8_UPTRACE_TOKEN) \
 	  --from-literal=UPTRACE_DSN=$(K8_UPTRACE_DSN)
-
-# start cluster if needed.
-ensure-minikube:
-	@echo "Checking minikube status..."
-	@if ! minikube status >/dev/null 2>&1; then \
-	  echo "Minikube not running, starting..."; \
-	  minikube start --memory=6144 --cpus=4 ; \
-	fi
-
-# hard reset when things are really broken.
-recreate-minikube:
-	@echo "Recreating Minikube cluster..."
-	minikube stop || true
-	minikube delete --all=true --purge=true || true
-	minikube start --memory=6144 --cpus=4
 
 # Why we used monitoring namespace for CRDs
 # CRDs themselves are cluster-scoped, 
@@ -2065,10 +2179,19 @@ argocd-repo-https-secret:
 .PHONY: argocd-rbac
 argocd-rbac:
 	kubectl apply -f gitops/argocd/argocd-rbac-cm.yaml
+
+.PHONY: argocd-restart
+argocd-restart:
+	@echo "Restarting Argo CD server..."
 	kubectl rollout restart deployment argocd-server -n $(ARGOCD_NAMESPACE)
-	# In the standard Argo CD install, the application controller runs 
-	# as a StatefulSet, not a Deployment
+	kubectl rollout status deployment argocd-server -n $(ARGOCD_NAMESPACE) --timeout=120s || \
+	  (echo "ERROR: argocd-server rollout timed out" && exit 1)
+
+	@echo "Restarting Argo CD application controller..."
+	sleep 2
 	kubectl rollout restart statefulset argocd-application-controller -n $(ARGOCD_NAMESPACE)
+	kubectl rollout status statefulset argocd-application-controller -n $(ARGOCD_NAMESPACE) --timeout=120s || \
+	  (echo "ERROR: argocd-application-controller rollout timed out" && exit 1)
 
 # Add a CRD bootstrap target
 # --server-side avoids writing the huge 
@@ -2095,9 +2218,10 @@ argocd-config:
 .PHONY: k8s-bootstrap-argocd
 k8s-bootstrap-argocd:
 	$(MAKE) argocd-install
-	$(MAKE) argocd-rbac
-	$(MAKE) argocd-repo-https-secret
 	$(MAKE) argocd-config
+	$(MAKE) argocd-rbac
+	$(MAKE) argocd-restart
+	$(MAKE) argocd-repo-https-secret
 	$(MAKE) k8s-monitoring-crds-apply
 	$(MAKE) k8s-namespaces-apply           # includes monitoring namespace
 	$(MAKE) argocd-apply-appsets
@@ -2187,56 +2311,101 @@ argocd-login-local:
 	  --insecure
 
 # ---- ArgoCD app sync targets ----
+
+.PHONY: argocd-sync-monitoring-dev
+argocd-sync-monitoring-dev: argocd-login-local
+	- $(ARGOCD_CLI_BIN) app terminate-op myapp-monitoring-dev || \
+	  echo "No running operation on myapp-monitoring-dev (or insufficient permission)."
+	$(ARGOCD_CLI_BIN) app sync myapp-monitoring-dev --timeout 300 || \
+	  echo "Warning: sync myapp-monitoring-dev returned non-zero (possibly already synced)."
+
+.PHONY: argocd-sync-logging-dev
+argocd-sync-logging-dev: argocd-login-local
+	- $(ARGOCD_CLI_BIN) app terminate-op myapp-logging-dev || \
+	  echo "No running operation on myapp-logging-dev (or insufficient permission)."
+	$(ARGOCD_CLI_BIN) app sync myapp-logging-dev --timeout 300 || \
+	  echo "Warning: sync myapp-logging-dev returned non-zero (possibly already synced)."
+
+.PHONY: argocd-sync-myapp-dev
+argocd-sync-myapp-dev: argocd-login-local
+	- $(ARGOCD_CLI_BIN) app terminate-op myapp-dev || \
+	  echo "No running operation on myapp-dev (or insufficient permission)."
+	$(ARGOCD_CLI_BIN) app sync myapp-dev --timeout 300 || \
+	  echo "Warning: sync myapp-dev returned non-zero (possibly already synced)."
+
+
 # Sync targets per environment
 # This uses the standard argocd app sync and argocd app wait commands 
 # to sync and ensure all three apps per env are Healthy.
 # Check Guide-ArgoCD-Resync-dev_staging_prod.md for more details, when should we call this?
 .PHONY: argocd-sync-dev
 argocd-sync-dev: argocd-login-local
-	# Cancel any leftover operations so sync can start cleanly
-	- $(ARGOCD_CLI_BIN) app terminate-op myapp-monitoring-dev || \
-	echo "No running operation on myapp-monitoring-dev (or insufficient permission)."
-	- $(ARGOCD_CLI_BIN) app terminate-op myapp-logging-dev || \
-	echo "No running operation on myapp-logging-dev (or insufficient permission)."
-	- $(ARGOCD_CLI_BIN) app terminate-op myapp-dev || \
-	echo "No running operation on myapp-dev (or insufficient permission)."
-
-	# Sync apps with explicit timeouts so they can't hang forever
-	$(ARGOCD_CLI_BIN) app sync myapp-monitoring-dev --timeout 300 || echo "Warning: sync myapp-monitoring-dev returned non-zero (possibly already synced)."
-	$(ARGOCD_CLI_BIN) app sync myapp-logging-dev --timeout 300 || echo "Warning: sync myapp-logging-dev returned non-zero (possibly already synced)."
-	$(ARGOCD_CLI_BIN) app sync myapp-dev --timeout 300 || echo "Warning: sync myapp-dev returned non-zero (possibly already synced)."
+	# Sync dev monitoring, logging, and app (with safe timeouts)
+	$(MAKE) argocd-sync-monitoring-dev
+	$(MAKE) argocd-sync-logging-dev
+	$(MAKE) argocd-sync-myapp-dev
 
 	# Wait for them to be Healthy, but still time‑bounded
 	$(ARGOCD_CLI_BIN) app wait myapp-monitoring-dev myapp-logging-dev myapp-dev \
-		--health --timeout 300 || echo "Warning: argocd app wait timed out; relying on kubectl readiness checks."
+	  --health --timeout 300 || echo "Warning: argocd app wait timed out; relying on kubectl readiness checks."
+
+.PHONY: argocd-sync-monitoring-staging
+argocd-sync-monitoring-staging: argocd-login-local
+	- $(ARGOCD_CLI_BIN) app terminate-op myapp-monitoring-staging || \
+	  echo "No running operation on myapp-monitoring-staging (or insufficient permission)."
+	$(ARGOCD_CLI_BIN) app sync myapp-monitoring-staging --timeout 300 || \
+	  echo "Warning: sync myapp-monitoring-staging returned non-zero (possibly already synced)."
+
+.PHONY: argocd-sync-logging-staging
+argocd-sync-logging-staging: argocd-login-local
+	- $(ARGOCD_CLI_BIN) app terminate-op myapp-logging-staging || \
+	  echo "No running operation on myapp-logging-staging (or insufficient permission)."
+	$(ARGOCD_CLI_BIN) app sync myapp-logging-staging --timeout 300 || \
+	  echo "Warning: sync myapp-logging-staging returned non-zero (possibly already synced)."
+
+.PHONY: argocd-sync-myapp-staging
+argocd-sync-myapp-staging: argocd-login-local
+	- $(ARGOCD_CLI_BIN) app terminate-op myapp-staging || \
+	  echo "No running operation on myapp-staging (or insufficient permission)."
+	$(ARGOCD_CLI_BIN) app sync myapp-staging --timeout 300 || \
+	  echo "Warning: sync myapp-staging returned non-zero (possibly already synced)."
 
 .PHONY: argocd-sync-staging
 argocd-sync-staging: argocd-login-local
-	-$(ARGOCD_CLI_BIN) app terminate-op myapp-monitoring-staging || \
-	  echo "No running operation on myapp-monitoring-staging (or insufficient permission)."
-	-$(ARGOCD_CLI_BIN) app terminate-op myapp-logging-staging || \
-	  echo "No running operation on myapp-logging-staging (or insufficient permission)."
-	-$(ARGOCD_CLI_BIN) app terminate-op myapp-staging || \
-	  echo "No running operation on myapp-staging (or insufficient permission)."
+	$(MAKE) argocd-sync-monitoring-staging
+	$(MAKE) argocd-sync-logging-staging
+	$(MAKE) argocd-sync-myapp-staging
 
-	$(ARGOCD_CLI_BIN) app sync myapp-monitoring-staging --timeout 300 || echo "Warning: sync myapp-monitoring-staging returned non-zero (possibly already synced)."
-	$(ARGOCD_CLI_BIN) app sync myapp-logging-staging --timeout 300 || echo "Warning: sync myapp-logging-staging returned non-zero (possibly already synced)."
-	$(ARGOCD_CLI_BIN) app sync myapp-staging --timeout 300 || echo "Warning: sync myapp-staging returned non-zero (possibly already synced)."
 	$(ARGOCD_CLI_BIN) app wait myapp-monitoring-staging myapp-logging-staging myapp-staging \
 	  --health --timeout 300 || echo "Warning: argocd app wait timed out; relying on kubectl readiness checks."
 
+.PHONY: argocd-sync-monitoring-prod
+argocd-sync-monitoring-prod: argocd-login-local
+	- $(ARGOCD_CLI_BIN) app terminate-op myapp-monitoring-prod || \
+	  echo "No running operation on myapp-monitoring-prod (or insufficient permission)."
+	$(ARGOCD_CLI_BIN) app sync myapp-monitoring-prod --timeout 300 || \
+	  echo "Warning: sync myapp-monitoring-prod returned non-zero (possibly already synced)."
+
+.PHONY: argocd-sync-logging-prod
+argocd-sync-logging-prod: argocd-login-local
+	- $(ARGOCD_CLI_BIN) app terminate-op myapp-logging-prod || \
+	  echo "No running operation on myapp-logging-prod (or insufficient permission)."
+	$(ARGOCD_CLI_BIN) app sync myapp-logging-prod --timeout 300 || \
+	  echo "Warning: sync myapp-logging-prod returned non-zero (possibly already synced)."
+
+.PHONY: argocd-sync-myapp-prod
+argocd-sync-myapp-prod: argocd-login-local
+	- $(ARGOCD_CLI_BIN) app terminate-op myapp-prod || \
+	  echo "No running operation on myapp-prod (or insufficient permission)."
+	$(ARGOCD_CLI_BIN) app sync myapp-prod --timeout 300 || \
+	  echo "Warning: sync myapp-prod returned non-zero (possibly already synced)."
+
 .PHONY: argocd-sync-prod
 argocd-sync-prod: argocd-login-local
-	-$(ARGOCD_CLI_BIN) app terminate-op myapp-monitoring-prod || \
-	  echo "No running operation on myapp-monitoring-prod (or insufficient permission)."
-	-$(ARGOCD_CLI_BIN) app terminate-op myapp-logging-prod || \
-	  echo "No running operation on myapp-logging-prod (or insufficient permission)."
-	-$(ARGOCD_CLI_BIN) app terminate-op myapp-prod || \
-	  echo "No running operation on myapp-prod (or insufficient permission)."
+	$(MAKE) argocd-sync-monitoring-prod
+	$(MAKE) argocd-sync-logging-prod
+	$(MAKE) argocd-sync-myapp-prod
 
-	$(ARGOCD_CLI_BIN) app sync myapp-monitoring-prod --timeout 300 || echo "Warning: sync myapp-monitoring-prod returned non-zero (possibly already synced)."
-	$(ARGOCD_CLI_BIN) app sync myapp-logging-prod --timeout 300 || echo "Warning: sync myapp-logging-prod returned non-zero (possibly already synced)."
-	$(ARGOCD_CLI_BIN) app sync myapp-prod --timeout 300 || echo "Warning: sync myapp-prod returned non-zero (possibly already synced)."
 	$(ARGOCD_CLI_BIN) app wait myapp-monitoring-prod myapp-logging-prod myapp-prod \
 	  --health --timeout 600 || echo "Warning: argocd app wait timed out; relying on kubectl readiness checks."
 
@@ -2362,7 +2531,7 @@ k8s-argocd-dev-local: ensure-minikube argocd-cli-install argocd-login-local
 
 	@echo "Resolving image for ArgoCD DEV..."
 	@set -e; \
-	@if [ -n "$$MYAPP_IMAGE" ]; then \
+	if [ -n "$$MYAPP_IMAGE" ]; then \
 		IMAGE="$$MYAPP_IMAGE"; \
 		echo "Using provided MYAPP_IMAGE=$$IMAGE"; \
 	else \
@@ -2390,7 +2559,7 @@ k8s-argocd-staging-local: ensure-minikube argocd-cli-install argocd-login-local
 
 	@echo "Resolving image for ArgoCD STAGING..."
 	@set -e; \
-	@if [ -n "$$MYAPP_IMAGE" ]; then \
+	if [ -n "$$MYAPP_IMAGE" ]; then \
 		IMAGE="$$MYAPP_IMAGE"; \
 		echo "Using provided MYAPP_IMAGE=$$IMAGE"; \
 	else \
