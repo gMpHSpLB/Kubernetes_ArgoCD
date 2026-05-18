@@ -36,6 +36,9 @@ spec:
         repoURL: https://github.com/gMpHSpLB/pythonworkspace.git
         targetRevision: "{{.targetRevision}}"
         path: infra/k8s/logging
+        helm:
+          valueFiles:
+            - loki-stack-values-{{.environment}}.yaml
       destination:
         server: https://kubernetes.default.svc
         namespace: "{{.namespace}}"

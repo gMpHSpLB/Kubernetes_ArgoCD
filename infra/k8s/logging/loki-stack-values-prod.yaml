@@ -102,6 +102,9 @@
 #   enabled: false  # If Grafana comes from kube-prometheus-stack, disable bundled Grafana here.
 
 # Note : Uncomment above code once S3 bucket is setup
+global:
+  environment: prod
+
 loki:
   auth_enabled: false
 

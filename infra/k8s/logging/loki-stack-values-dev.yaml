@@ -30,6 +30,9 @@
 #  storage and 7-day retention keep things easy to manage,
 #   but for production you would usually move to more durable 
 #   storage and stronger access controls.
+global:
+  environment: dev
+
 loki: # This begins the configuration block for Loki itself, the backend log storage and query service.
   auth_enabled: false # Disables authentication inside Loki. This is common in a dev or internal cluster setup, but it is not something you would normally want exposed in production.
   commonConfig: # Shared settings that apply across Loki components.

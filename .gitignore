@@ -9,3 +9,4 @@ install-scout.sh
 infra/secrets-local/*.yaml
 bin/argocd
 infra/k8s/monitoring/charts/
+infra/k8s/logging/charts/

@@ -1,0 +1,11 @@
+apiVersion: v2
+name: logging
+description: "Cluster logging stack (Loki + Promtail) wrapper chart"
+type: application
+version: 0.1.0
+
+dependencies:
+  - name: loki-stack
+    version: 2.10.2          # pick a pinned version from ArtifactHub
+    repository: https://grafana.github.io/helm-charts
+

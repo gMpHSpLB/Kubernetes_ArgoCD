@@ -1,0 +1,7 @@
+# Default environment; Argo CD can override this via parameters if needed.
+# Shared defaults (applied for all environments, then overridden by env-specific files)
+global:
+  environment: dev
+
+loki:
+  auth_enabled: false
