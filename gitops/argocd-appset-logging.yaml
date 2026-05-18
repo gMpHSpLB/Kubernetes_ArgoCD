@@ -13,6 +13,7 @@ spec:
         elements:
           - environment: dev
             namespace: logging
+            autoSync: "true"
             targetRevision: main
           - environment: staging
             namespace: logging
