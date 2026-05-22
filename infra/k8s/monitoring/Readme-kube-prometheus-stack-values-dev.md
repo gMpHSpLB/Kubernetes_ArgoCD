@@ -112,52 +112,75 @@ alertmanager:
 # used to visualize Prometheus metrics.
 grafana:
   adminUser: "admin"
-  adminPassword: "admin"
+  adminPassword: "admin"     # dev only, Sets the initial Grafana admin username and password.
+  # sidecar:
+  #   dashboards:
+  #     enabled: true
+  #     label: grafana_dashboard
+  #     #labelValue: "1"
+  #     folder: /tmp/dashboards
+  #     provider:
+  #       foldersFromFilesStructure: true
   service:
+    # Use case: safer default for dev because Grafana is not 
+    # publicly exposed by default.
+    # Exposes Grafana as a ClusterIP service. That means it 
+    # is only reachable inside the Kubernetes cluster unless 
+    # you use port-forwarding, ingress, or another exposure method.
     type: ClusterIP
   ingress:
-    enabled: false
-  rbac:
-    create: true
-    pspEnabled: false
-
+    enabled: false # Disabled in dev baseline unless you want browser access.
+  # Use case: RBAC is still the standard way to grant permissions, 
+  # while PSP is disabled because it is deprecated/removed in modern 
+  # Kubernetes setups.
+  # RBAC in security stands for Role-Based Access Control. It is a way 
+  # to control who can access systems, data, or actions by assigning 
+  # permissions to roles instead of giving them individually to each person
+  rbac: 
+    create: true # means Grafana gets the Kubernetes RBAC objects it needs.
+    pspEnabled: false # disables PodSecurityPolicy support.
+  
   grafana.ini:
     auth:
-      disable_login_form: false
+      disable_login_form: false   # keep form login in dev, keep the login form enabled (you can later switch to true when SSO is fully configured and you want only SSO)
     users:
-      viewers_can_edit: true
+      viewers_can_edit: true      # allow experiments in dev, Grafana viewers cannot edit dashboards; only editors/admins can. This is key for “prod dashboards are read‑only for most people”
     dashboards:
-      default_home_dashboard_path: /var/lib/grafana/dashboards/home.json
+      default_home_dashboard_path: /var/lib/grafana/dashboards/home.json # Sets the default home dashboard to a JSON file at that path. You’d typically ship that via a ConfigMap volume.
     security:
-      allow_embedding: true
+      allow_embedding: true # Allows embedding Grafana panels in iframes (e.g., internal portals, Confluence). Keep an eye on security/CSRF when using this
 
+  # Add Loki datasource here
   additionalDataSources:
     - name: loki
-      type: loki
-      access: proxy
-      url: http://myapp-logging-dev-loki.logging.svc:3100
+      type: loki # declares this as a Loki datasource.
+      access: proxy # means Grafana proxies queries to Loki from the server side, which is standard in Kubernetes.
+      url: http://myapp-logging-dev-loki.logging.svc:3100 # must match the Loki service name/namespace; with helm upgrade --install loki ... -n logging the service will be loki.logging.svc:3100 by default
       isDefault: false
       jsonData:
         maxLines: 1000
-        timeout: 60
+        timeout: 60 # seconds; useful for large log queries
 
-  dashboardProviders:
+  dashboardProviders: # tells Grafana to load dashboards from files in given directories.
     dashboardproviders.yaml:
       apiVersion: 1
       providers:
-        - name: 'infra-dev'
-          orgId: 1
-          folder: 'infra-dev'
+        - name: 'infra-dev' # provider name (internal).
+          orgId: 1 # Grafana organization id (default org).
+          folder: 'infra-dev' # Grafana folder where dashboards from this provider will appear (infra, myapp).
           type: file
           options:
-            path: /var/lib/grafana/dashboards/infra
+            path: /var/lib/grafana/dashboards/infra # treat dashboards as JSON files on disk under those paths. The chart mounts ConfigMaps into /var/lib/grafana/dashboards/*, so this points to those
         - name: 'myapp-dev'
           orgId: 1
           folder: 'myapp-dev'
           type: file
           options:
             path: /var/lib/grafana/dashboards/myapp
-
+  # It creates volumes from ConfigMaps named 
+  # grafana-dashboards-infra and grafana-dashboards-myapp 
+  # and mounts them into the paths referenced above.
   dashboardsConfigMaps:
     infra: grafana-dashboards-infra-dev
     myapp: grafana-dashboards-myapp-dev
+
