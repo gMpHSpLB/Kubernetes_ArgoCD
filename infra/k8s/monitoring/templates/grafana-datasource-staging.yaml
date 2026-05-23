@@ -1,12 +1,12 @@
-{{- if eq .Values.global.environment "dev" }}
+{{- if eq .Values.global.environment "staging" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cluster-monitoring-infra-d-grafana-datasource
+  name: cluster-monitoring-infra-s-grafana-datasource
   namespace: monitoring
   labels:
     app.kubernetes.io/name: grafana
-    app.kubernetes.io/instance: cluster-monitoring-infra-dev
+    app.kubernetes.io/instance: cluster-monitoring-infra-staging
     app.kubernetes.io/component: datasource
 data:
   datasource.yaml: |
@@ -15,7 +15,7 @@ data:
       - name: Prometheus
         type: prometheus
         access: proxy
-        url: http://cluster-monitoring-infra-d-prometheus.monitoring:9090
+        url: http://cluster-monitoring-infra-s-prometheus.monitoring:9090
         isDefault: true
         jsonData:
           timeInterval: "30s"
@@ -23,14 +23,14 @@ data:
       - name: Alertmanager
         type: alertmanager
         access: proxy
-        url: http://cluster-monitoring-infra-d-alertmanager.monitoring:9093
+        url: http://cluster-monitoring-infra-s-alertmanager.monitoring:9093
         jsonData:
           implementation: "prometheus"
 
       - name: Loki
         type: loki
         access: proxy
-        url: http://myapp-logging-dev-loki.logging:3100
+        url: http://myapp-logging-staging-loki.logging:3100
         jsonData:
           maxLines: 1000
 {{- end }}

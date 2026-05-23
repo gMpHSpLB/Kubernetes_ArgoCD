@@ -54,6 +54,17 @@ grafana:
       default_home_dashboard_path: /var/lib/grafana/dashboards/home.json
     security:
       allow_embedding: true
+  enabled: true
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      uid: loki
+      access: proxy
+      url: http://myapp-logging-dev-loki.logging.svc:3100
+      isDefault: false
+      jsonData:
+        maxLines: 1000
+        timeout: 60
   dashboardProviders:
     dashboardproviders.yaml:
       apiVersion: 1

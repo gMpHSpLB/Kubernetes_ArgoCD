@@ -5,8 +5,11 @@ name: cluster-monitoring-infra
 description: Cluster-level (kube-prometheus-stack + myapp extras)
 type: application
 version: 0.1.0
+# Remove the vendored kube-prometheus-stack dependency: 
+#    This ensures Helm doesn’t render kube-prometheus-stack resources from inside this chart.
 # choose a tested version; you can pin to what you already use via helm CLI
-dependencies:
-  - name: kube-prometheus-stack
-    version: "85.0.3"
-    repository: "https://prometheus-community.github.io/helm-charts"
+# dependencies:
+#   - name: kube-prometheus-stack
+#     version: "85.0.3"
+#     repository: "https://prometheus-community.github.io/helm-charts"
+# (no dependencies, or only dependencies you explicitly want)
