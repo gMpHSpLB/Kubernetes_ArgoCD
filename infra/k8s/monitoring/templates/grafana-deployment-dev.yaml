@@ -1,0 +1,118 @@
+{{- if eq .Values.global.environment "dev" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-monitoring-infra-dev-grafana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: cluster-monitoring-infra-dev
+    app.kubernetes.io/component: grafana
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+      app.kubernetes.io/instance: cluster-monitoring-infra-dev
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grafana
+        app.kubernetes.io/instance: cluster-monitoring-infra-dev
+      annotations:
+        # Optional: add checksum annotations for restart-on-config-change
+        checksum/datasource: "{{ include (print $.Template.BasePath \"/grafana-datasource-dev.yaml\") . | sha256sum | default \"\" }}"
+    spec:
+      serviceAccountName: cluster-monitoring-infra-grafana
+      securityContext:
+        fsGroup: 472
+        runAsUser: 472
+        runAsGroup: 472
+        runAsNonRoot: true
+      containers:
+        - name: grafana
+          image: {{ .Values.grafana.image | default "grafana/grafana:11.0.0" }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-monitoring-infra-dev-grafana
+                  key: admin-user
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cluster-monitoring-infra-dev-grafana
+                  key: admin-password
+            - name: GF_SERVER_ROOT_URL
+              value: "%(protocol)s://%(domain)s/"
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "false"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_PATHS_PROVISIONING
+              value: /etc/grafana/provisioning
+            - name: GF_LOG_MODE
+              value: console
+            - name: GF_LOG_LEVEL
+              value: info
+          volumeMounts:
+            - name: grafana-storage
+              mountPath: /var/lib/grafana
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            # Optional: if you later add dashboards, mount them here
+            - name: grafana-dashboards-config
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: grafana-dashboards-infra
+              mountPath: /var/lib/grafana/dashboards/infra
+            - name: grafana-dashboards-myapp
+              mountPath: /var/lib/grafana/dashboards/myapp
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "2Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+      volumes:
+        - name: grafana-storage
+          persistentVolumeClaim:
+            claimName: grafana-storage-dev
+        - name: grafana-datasources
+          configMap:
+            name: cluster-monitoring-infra-d-grafana-datasource
+        - name: grafana-dashboards-config
+          configMap:
+            name: grafana-dashboards-infra-dev
+            optional: true
+        - name: grafana-dashboards-infra
+          configMap:
+            name: grafana-dashboards-infra-dev
+            optional: true
+        - name: grafana-dashboards-myapp
+          configMap:
+            name: grafana-dashboards-myapp-dev
+            optional: true
+{{- end }}

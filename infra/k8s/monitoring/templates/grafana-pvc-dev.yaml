@@ -1,0 +1,17 @@
+{{- if eq .Values.global.environment "dev" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-storage-dev
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/instance: cluster-monitoring-infra-dev
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.grafana.storage.size | default "5Gi" }}
+  storageClassName: {{ .Values.grafana.storageClassName | default "standard" }}
+{{- end }}
