@@ -36,4 +36,7 @@ data:
     [log]
     mode = console
     level = info
+
+    [feature_toggles]
+    fullRangeLogsVolume = false
 {{- end }}
