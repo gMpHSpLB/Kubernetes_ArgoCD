@@ -108,6 +108,11 @@ loki:
   persistence:
     enabled: false
 
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "3100"
+    prometheus.io/path: "/metrics"
+    
   # Use simple filesystem storage in the container for staging
   config:
     auth_enabled: false
