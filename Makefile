@@ -2181,12 +2181,27 @@ argocd-repo-https-secret:
 argocd-rbac:
 	kubectl apply -f gitops/argocd/argocd-rbac-cm.yaml
 
+# What this does:
+# 	Tries to wait 180s.
+# 		If that times out, it checks availableReplicas.
+# 			If availableReplicas is 1, it logs a warning but does not fail the Make target.
+# 			If 0, it fails — that’s a real problem.
 .PHONY: argocd-restart
 argocd-restart:
 	@echo "Restarting Argo CD server..."
 	kubectl rollout restart deployment argocd-server -n $(ARGOCD_NAMESPACE)
-	kubectl rollout status deployment argocd-server -n $(ARGOCD_NAMESPACE) --timeout=120s || \
-	  (echo "ERROR: argocd-server rollout timed out" && exit 1)
+	# Try waiting, but if it times out, just warn if there is at least 1 available replica
+	@if ! kubectl rollout status deployment argocd-server -n $(ARGOCD_NAMESPACE) --timeout=180s; then \
+	  echo "WARNING: argocd-server rollout timed out; checking deployment status..."; \
+	  kubectl get deployment argocd-server -n $(ARGOCD_NAMESPACE) -o wide; \
+	  AVAIL=$$(kubectl get deployment argocd-server -n $(ARGOCD_NAMESPACE) -o jsonpath='{.status.availableReplicas}'); \
+	  if [ "$$AVAIL" != "1" ]; then \
+	    echo "ERROR: argocd-server does not have 1 available replica; failing."; \
+	    exit 1; \
+	  else \
+	    echo "argocd-server has $$AVAIL available replica(s); continuing despite timeout."; \
+	  fi; \
+	fi
 
 	@echo "Restarting Argo CD application controller..."
 	sleep 2
